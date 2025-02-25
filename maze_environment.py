@@ -61,6 +61,7 @@ class MazeEnvironment:
         """
         row, col = self.agent_pos
         old_pos = self.agent_pos
+        actually_moved = False
 
         if action == UP and row > 0:  # Up
             new_pos = (row - 1, col)
@@ -71,17 +72,24 @@ class MazeEnvironment:
         elif action == LEFT and col > 0:  # Left
             new_pos = (row, col - 1)
         else:
-            new_pos = self.agent_pos  # Invalid action
+            new_pos = self.agent_pos  # Invalid action (boundary case)
+            print(f"Invalid move - boundary edge at position {self.agent_pos} with action {action}")
 
         # Check if the new position is a wall
-        if self.maze[new_pos] != WALL:
+        if new_pos != self.agent_pos and self.maze[new_pos] != WALL:
             self.agent_pos = new_pos
+            actually_moved = True
+        elif new_pos != self.agent_pos:
+            print(f"Invalid move - wall collision at {new_pos}")
 
-        # Record this step in the path history if the agent actually moved
+        # Determine if the goal is reached
         done = self.agent_pos == self.goal_pos
         reward = 1 if done else 0
 
-        # Add to path history
-        self.path_history.append({"state": old_pos, "action": action, "reward": reward, "next_state": self.agent_pos})
+        # Only add to path history if the agent actually moved
+        if actually_moved:
+            self.path_history.append(
+                {"state": old_pos, "action": action, "reward": reward, "next_state": self.agent_pos}
+            )
 
         return self.agent_pos, reward, done

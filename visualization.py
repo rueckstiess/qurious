@@ -4,7 +4,7 @@ from maze_environment import UP, DOWN, LEFT, RIGHT, EMPTY, WALL, START, GOAL, AG
 
 # Colors for visualization
 COLORS = {
-    EMPTY: (1.0, 1.0, 1.0, 1.0),
+    EMPTY: (1.0, 1.0, 1.0, 0.0),
     WALL: (0.0, 0.0, 0.0, 1.0),
     START: (0.0, 1.0, 0.0, 1.0),
     GOAL: (1.0, 0.0, 0.0, 1.0),
@@ -85,6 +85,32 @@ class MazeVisualizer:
 
         # Show grid with RGBA values
         ax.imshow(rgba_grid)
+
+        # Add text labels for START and GOAL positions
+        start_row, start_col = self.env.start_pos
+        goal_row, goal_col = self.env.goal_pos
+
+        # Add START text
+        ax.text(
+            start_col,
+            start_row,
+            "START",
+            horizontalalignment="center",
+            verticalalignment="center",
+            fontsize=12,
+            fontweight="normal",
+        )
+
+        # Add GOAL text
+        ax.text(
+            goal_col,
+            goal_row,
+            "GOAL",
+            horizontalalignment="center",
+            verticalalignment="center",
+            fontsize=12,
+            fontweight="normal",
+        )
 
         # Draw path arrows if there is a path history
         if self.env.path_history:

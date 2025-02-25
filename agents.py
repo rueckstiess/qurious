@@ -1,4 +1,3 @@
-import numpy as np
 import random
 import matplotlib.pyplot as plt
 from maze_environment import UP, DOWN, LEFT, RIGHT
@@ -117,8 +116,8 @@ class ManualAgent(Agent):
                 break
 
             # Take step in environment
-            state, action = self.env.agent_pos, self.next_action
-            next_state, reward, done = self.env.step(action)
+            _, action = self.env.agent_pos, self.next_action
+            _, _, done = self.env.step(action)
 
             # Print current state and action
             print(self.env.path_history[-1])
