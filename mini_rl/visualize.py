@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import matplotlib.patches as patches
 import networkx as nx
+from mini_rl.value_fns import StateValueFunction, ActionValueFunction
 
 
 def visualize_grid_world(env, agent=None, value_function=None, plot_type="policy"):
@@ -108,7 +109,10 @@ def visualize_grid_world(env, agent=None, value_function=None, plot_type="policy
                 state = env.state_to_index((row, col))
 
                 # Get value
-                value = value_function.estimate(state)
+                if isinstance(value_function, StateValueFunction):
+                    value = value_function.estimate(state)
+                elif isinstance(value_function, ActionValueFunction):
+                    value = np.max(value_function.estimate_all_actions(state))
 
                 # Plot value
                 ax.text(col, row, f"{value:.2f}", ha="center", va="center", fontsize=16, color="black")
@@ -139,10 +143,10 @@ def visualize_grid_world(env, agent=None, value_function=None, plot_type="policy
                     ax.text(
                         col + dx - 0.5,
                         row + dy - 0.5,
-                        f"{q_value:.3f}",
+                        f"{q_value:.2f}",
                         ha="center",
                         va="center",
-                        fontsize=12,
+                        fontsize=8,
                         color="blue",
                     )
 
