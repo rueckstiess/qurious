@@ -61,7 +61,6 @@ class MazeEnvironment:
         """
         row, col = self.agent_pos
         old_pos = self.agent_pos
-        actually_moved = False
 
         if action == UP and row > 0:  # Up
             new_pos = (row - 1, col)

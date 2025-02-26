@@ -83,6 +83,7 @@ class MazeVisualizer:
                 if cell_type in self.colors:
                     rgba_grid[i, j] = self.colors[cell_type]
 
+        print(rgba_grid)
         # Show grid with RGBA values
         ax.imshow(rgba_grid)
 
