@@ -260,11 +260,11 @@ class StochasticTabularPolicy(TabularPolicy):
             value_function: The value function to use for the update
         """
         # Initialize temperature parameter for softmax
-        temperature = 1.0
+        temperature = 0.1
 
         for state in range(self.n_states):
-            # Get current values for all actions in the state
-            values = value_function[state]
+            # Get current values for all actions in the state using the proper method
+            values = value_function.estimate_all_actions(state)
 
             # Calculate softmax probabilities
             exp_values = np.exp(values / temperature)
