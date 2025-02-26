@@ -90,8 +90,8 @@ def visualize_grid_world(env, agent=None, value_function=None, plot_type="policy
                             dy,  # Arrow direction and length
                             head_width=0.15 * scale,
                             head_length=0.15 * scale,
-                            fc="blue",
-                            ec="blue",
+                            fc="black",
+                            ec="black",
                             length_includes_head=True,
                             alpha=0.7,
                         )
