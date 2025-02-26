@@ -1,7 +1,7 @@
 import numpy as np
 from collections import deque
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple, Iterator
 
 
 @dataclass
@@ -13,6 +13,9 @@ class Transition:
     reward: float
     next_state: Any
     done: bool
+
+    def as_tuple(self) -> Tuple:
+        return (self.state, self.action, self.reward, self.next_state, self.done)
 
 
 class Experience:
@@ -74,6 +77,18 @@ class Experience:
 
         return list(self.buffer)[start_idx : end_idx + 1]
 
+    def get_current_transition(self) -> Optional[Transition]:
+        """
+        Get the most recent transition added to the experience.
+
+        Returns:
+            The most recent transition, or None if no transitions have been added
+        """
+        if self.buffer:
+            return self.buffer[-1]
+
+        return None
+
     def get_current_episode(self) -> List[Transition]:
         """
         Get transitions from the current ongoing episode.
@@ -93,3 +108,33 @@ class Experience:
     def size(self) -> int:
         """Get the number of stored transitions."""
         return len(self.buffer)
+
+    def __iter__(self) -> Iterator[Transition]:
+        """
+        Iterate over all transitions in order of recording.
+
+        Returns:
+            Iterator over transitions
+        """
+        return iter(self.buffer)
+
+    def iter_episodes(self) -> Iterator[List[Transition]]:
+        """
+        Iterate over complete episodes in order of recording.
+
+        Returns:
+            Iterator over episodes (lists of transitions)
+        """
+        if not self.episode_boundaries:
+            return iter([])
+
+        start_idx = 0
+        buffer_list = list(self.buffer)
+
+        for end_idx in self.episode_boundaries:
+            yield buffer_list[start_idx : end_idx + 1]
+            start_idx = end_idx + 1
+
+        # If there's an incomplete episode at the end, yield it too
+        if self._current_episode:
+            yield self._current_episode

@@ -102,6 +102,21 @@ class TestExperience(unittest.TestCase):
         episode = self.empty_exp.sample_episode()
         self.assertEqual(len(episode), 0)
 
+    def test_get_current_transition(self):
+        """Test current transition access."""
+        self.single_episode_exp.add(Transition(2, 1, 0.3, 0, False))
+        transaction = Transition(0, 1, 0.5, 1, False)
+        self.single_episode_exp.add(transaction)
+
+        current = self.single_episode_exp.get_current_transition()
+        self.assertIsNotNone(current)
+        self.assertEqual(current, transaction)
+
+    def test_get_current_transition_empty(self):
+        """Test current transition access from empty buffer."""
+        current = self.empty_exp.get_current_transition()
+        self.assertIsNone(current)
+
     def test_get_current_episode(self):
         """Test current episode access."""
         self.single_episode_exp.add(Transition(0, 1, 0.5, 1, False))  # Start new episode
@@ -132,6 +147,83 @@ class TestExperience(unittest.TestCase):
         boundaries = self.multi_episode_exp.episode_boundaries
         for i in range(len(boundaries) - 1):
             self.assertLess(boundaries[i], boundaries[i + 1])
+
+    def test_transition_iteration(self):
+        exp = Experience()
+
+        # Create some test transitions
+        transitions = [
+            Transition(state=1, action=0, reward=1.0, next_state=2, done=False),
+            Transition(state=2, action=1, reward=-1.0, next_state=3, done=False),
+            Transition(state=3, action=0, reward=2.0, next_state=4, done=True),
+        ]
+
+        # Add transitions to experience
+        for t in transitions:
+            exp.add(t)
+
+        # Test iteration over transitions
+        collected = list(exp)
+        self.assertEqual(len(collected), 3)
+        for a, b in zip(collected, transitions):
+            self.assertEqual(a, b)
+
+    def test_episode_iteration(self):
+        exp = Experience()
+
+        # Create two episodes
+        episode1 = [
+            Transition(state=1, action=0, reward=1.0, next_state=2, done=False),
+            Transition(state=2, action=1, reward=-1.0, next_state=3, done=True),
+        ]
+
+        episode2 = [
+            Transition(state=4, action=0, reward=2.0, next_state=5, done=False),
+            Transition(state=5, action=1, reward=3.0, next_state=6, done=True),
+        ]
+
+        # Add all transitions
+        for t in episode1 + episode2:
+            exp.add(t)
+
+        # Test iteration over episodes
+        episodes = list(exp.iter_episodes())
+        self.assertEqual(len(episodes), 2)
+        self.assertEqual(episodes[0], episode1)
+        self.assertEqual(episodes[1], episode2)
+
+    def test_episode_iteration_with_incomplete(self):
+        exp = Experience()
+
+        # Create one complete episode and one incomplete
+        complete_episode = [
+            Transition(state=1, action=0, reward=1.0, next_state=2, done=False),
+            Transition(state=2, action=1, reward=-1.0, next_state=3, done=True),
+        ]
+
+        incomplete_episode = [
+            Transition(state=4, action=0, reward=2.0, next_state=5, done=False),
+            Transition(state=5, action=1, reward=3.0, next_state=6, done=False),
+        ]
+
+        # Add all transitions
+        for t in complete_episode:
+            exp.add(t)
+        for t in incomplete_episode:
+            exp.add(t)
+
+        # Test iteration over episodes
+        episodes = list(exp.iter_episodes())
+        self.assertEqual(len(episodes), 2)
+        self.assertEqual(episodes[0], complete_episode)
+        self.assertEqual(episodes[1], incomplete_episode)
+
+    def test_empty_experience_iteration(self):
+        exp = Experience()
+
+        # Test iteration over empty experience
+        self.assertEqual(list(exp), [])
+        self.assertEqual(list(exp.iter_episodes()), [])
 
 
 if __name__ == "__main__":

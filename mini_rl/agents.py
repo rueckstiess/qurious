@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from .experience import Experience, Transition
-from typing import Optional
+from typing import Optional, Tuple
 
 
 class Agent(ABC):
@@ -143,7 +143,7 @@ class ValueBasedAgent(TabularAgent):
         self.Q = action_value_function  # Alias for clarity
         self.gamma = gamma
 
-    def learn(self, transition):
+    def learn(self, transition: Transition | Tuple):
         """
         Update the agent's value function and policy based on a transition.
 
@@ -151,8 +151,10 @@ class ValueBasedAgent(TabularAgent):
         Specific algorithms like Q-learning or SARSA should override this.
 
         Args:
-            transition (tuple): (state, action, reward, next_state, done)
+            transition (Transition | tuple): (state, action, reward, next_state, done)
         """
+        if isinstance(transition, Transition):
+            transition = transition.as_tuple()
         state, action, reward, next_state, done = transition
 
         # This is a default TD update - specific algorithms will override this
@@ -184,6 +186,8 @@ class QLearningAgent(ValueBasedAgent):
         Args:
             transition (tuple): (state, action, reward, next_state, done)
         """
+        if isinstance(transition, Transition):
+            transition = transition.as_tuple()
         state, action, reward, next_state, done = transition
 
         if done:
@@ -231,6 +235,8 @@ class ExpectedSarsaAgent(ValueBasedAgent):
         Args:
             transition (tuple): (state, action, reward, next_state, done)
         """
+        if isinstance(transition, Transition):
+            transition = transition.as_tuple()
         state, action, reward, next_state, done = transition
 
         if done:
