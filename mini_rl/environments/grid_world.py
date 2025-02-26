@@ -49,6 +49,7 @@ class GridWorld(Environment):
         self.terminal_reward = terminal_reward
         self.step_penalty = step_penalty
         self.max_steps = max_steps
+        self._done = False
 
         # State representation
         self.position = None
@@ -75,8 +76,7 @@ class GridWorld(Environment):
         Returns:
             int: State index
         """
-        row, col = self.position
-        return row * self.width + col
+        return self.state_to_index(self.position)
 
     def step(self, action):
         """
@@ -120,6 +120,8 @@ class GridWorld(Environment):
         else:
             reward = -self.step_penalty
             done = False
+
+        self._done = done
 
         # Get new state
         next_state = self.get_state()
@@ -261,3 +263,23 @@ class GridWorld(Environment):
         row = index // self.width
         col = index % self.width
         return (row, col)
+
+    @property
+    def action_space(self):
+        """
+        Get the action space of the environment.
+
+        Returns:
+            The action space
+        """
+        return list(range(self.get_num_actions()))
+
+    @property
+    def state_space(self):
+        """
+        Get the state space of the environment.
+
+        Returns:
+            The state space
+        """
+        return list(range(self.get_num_states()))

@@ -56,15 +56,6 @@ class Environment:
         """Clean up resources."""
         pass
 
-    def sample_action(self):
-        """
-        Sample a random action from the action space.
-
-        Returns:
-            action: A sampled action
-        """
-        raise NotImplementedError("Subclasses must implement the sample_action method")
-
     @property
     def action_space(self):
         """
