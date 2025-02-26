@@ -132,18 +132,7 @@ class ValueBasedAgent(TabularAgent):
         self.Q.update(state, action, target)
 
         # Update the policy if it depends on the value function
-        self._update_policy(state)
-
-    def _update_policy(self, state):
-        """
-        Update the policy based on the current value function.
-
-        Args:
-            state: The state to update the policy for
-        """
-        # Default implementation does nothing
-        # Subclasses can override this to update the policy
-        pass
+        self.policy.update_from_value_fn(self.Q)
 
 
 class QLearningAgent(ValueBasedAgent):
@@ -170,6 +159,9 @@ class QLearningAgent(ValueBasedAgent):
 
         # Update the action-value function
         self.Q.update(state, action, target)
+
+        # Update the policy if it depends on the value function
+        self.policy.update_from_value_fn(self.Q)
 
 
 class SarsaAgent(ValueBasedAgent):
@@ -220,4 +212,4 @@ class ExpectedSarsaAgent(ValueBasedAgent):
         self.Q.update(state, action, target)
 
         # Update the policy if it depends on the value function
-        self._update_policy(state)
+        self.policy.update_from_value_fn(self.Q)

@@ -139,7 +139,7 @@ def visualize_grid_world(env, agent=None, value_function=None, plot_type="policy
                     ax.text(
                         col + dx - 0.5,
                         row + dy - 0.5,
-                        f"{q_value:.1f}",
+                        f"{q_value:.3f}",
                         ha="center",
                         va="center",
                         fontsize=12,
@@ -225,7 +225,7 @@ def visualize_mdp(mdp, env=None, layout_type="spring", show_rewards=True, thresh
                         probability=prob,
                         reward=reward,
                         weight=prob,  # For layout algorithms
-                        label=f"{action_name}: {prob:.2f}" + (f", R={reward:.1f}" if show_rewards else ""),
+                        label=f"{action_name}: {prob:.3f}" + (f", R={reward:.1f}" if show_rewards else ""),
                     )
 
     # Create figure

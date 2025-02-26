@@ -207,6 +207,8 @@ class TestEpsilonGreedyPolicy(unittest.TestCase):
         self.n_states = 3
         self.n_actions = 4
         self.epsilon = 0.2
+        self.decay_rate = 0.95
+        self.min_epsilon = 0.01
 
         # Create a deterministic base policy
         self.base_policy = DeterministicTabularPolicy(self.n_states, self.n_actions)
@@ -214,8 +216,10 @@ class TestEpsilonGreedyPolicy(unittest.TestCase):
         self.base_policy.policy[1] = 2  # State 1 -> Action 2
         self.base_policy.policy[2] = 3  # State 2 -> Action 3
 
-        # Create epsilon-greedy policy
-        self.policy = EpsilonGreedyPolicy(self.base_policy, self.epsilon)
+        # Create epsilon-greedy policy with decay
+        self.policy = EpsilonGreedyPolicy(
+            self.base_policy, self.epsilon, decay_rate=self.decay_rate, min_epsilon=self.min_epsilon
+        )
 
     def test_initialization(self):
         """Test if policy is initialized correctly."""
@@ -274,6 +278,46 @@ class TestEpsilonGreedyPolicy(unittest.TestCase):
         expected[3] += 1 - self.epsilon  # Now action 3 is the greedy action
 
         assert_array_almost_equal(action_probs, expected, decimal=2)
+
+    def test_epsilon_decay(self):
+        """Test epsilon decay functionality."""
+        initial_epsilon = self.policy.epsilon
+
+        # Decay once
+        new_epsilon = self.policy.decay_epsilon()
+        self.assertEqual(new_epsilon, self.policy.epsilon)
+        self.assertAlmostEqual(new_epsilon, initial_epsilon * self.decay_rate)
+
+        # Decay multiple times
+        for _ in range(10):
+            self.policy.decay_epsilon()
+
+        # Epsilon should not go below min_epsilon
+        self.assertGreaterEqual(self.policy.epsilon, self.min_epsilon)
+
+    def test_reset_epsilon(self):
+        """Test resetting epsilon to initial value."""
+        initial_epsilon = self.policy.epsilon
+
+        # Decay a few times
+        for _ in range(5):
+            self.policy.decay_epsilon()
+
+        # Verify epsilon has changed
+        self.assertNotEqual(self.policy.epsilon, initial_epsilon)
+
+        # Reset and verify
+        self.policy.reset_epsilon()
+        self.assertEqual(self.policy.epsilon, initial_epsilon)
+
+    def test_no_decay_rate(self):
+        """Test policy behavior when no decay rate is specified."""
+        policy = EpsilonGreedyPolicy(self.base_policy, self.epsilon)
+        initial_epsilon = policy.epsilon
+
+        # Decay should have no effect
+        policy.decay_epsilon()
+        self.assertEqual(policy.epsilon, initial_epsilon)
 
 
 class TestSoftmaxPolicy(unittest.TestCase):

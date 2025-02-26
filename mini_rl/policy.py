@@ -49,6 +49,16 @@ class Policy(ABC):
         """
         pass
 
+    @abstractmethod
+    def update_from_value_fn(self, value_function):
+        """
+        Update the policy based on a value function.
+
+        Args:
+            value_function: The value function to use for the update
+        """
+        pass
+
     def save(self, filepath):
         """
         Save the policy to a file.
@@ -151,6 +161,16 @@ class DeterministicTabularPolicy(TabularPolicy):
         """
         self.policy[state] = action
 
+    def update_from_value_fn(self, value_function):
+        """
+        Update the policy based on a value function.
+
+        Args:
+            value_function: The value function to use for the update
+        """
+        for state in range(self.n_states):
+            self.policy[state] = np.argmax(value_function.estimate_all_actions(state))
+
 
 class StochasticTabularPolicy(TabularPolicy):
     """
@@ -230,6 +250,26 @@ class StochasticTabularPolicy(TabularPolicy):
         exp_values = np.exp(values / temperature)
         self.policy[state] = exp_values / np.sum(exp_values)
 
+    def update_from_value_fn(self, value_function):
+        """
+        Update the policy based on a value function.
+
+        This implementation uses a soft-max update rule.
+
+        Args:
+            value_function: The value function to use for the update
+        """
+        # Initialize temperature parameter for softmax
+        temperature = 1.0
+
+        for state in range(self.n_states):
+            # Get current values for all actions in the state
+            values = value_function[state]
+
+            # Calculate softmax probabilities
+            exp_values = np.exp(values / temperature)
+            self.policy[state] = exp_values / np.sum(exp_values)
+
 
 class EpsilonGreedyPolicy(TabularPolicy):
     """
@@ -237,19 +277,44 @@ class EpsilonGreedyPolicy(TabularPolicy):
 
     With probability epsilon, takes a random action.
     With probability 1-epsilon, takes the action from the base policy.
+    Epsilon can decay over time if decay_rate is specified.
     """
 
-    def __init__(self, base_policy, epsilon=0.1):
+    def __init__(self, base_policy, epsilon=0.1, decay_rate=None, min_epsilon=0.01):
         """
         Initialize an epsilon-greedy policy.
 
         Args:
             base_policy (Policy): The base policy to use for greedy actions
-            epsilon (float, optional): Probability of taking a random action
+            epsilon (float, optional): Initial probability of taking a random action
+            decay_rate (float, optional): Rate at which epsilon decays (multiply by this value)
+            min_epsilon (float, optional): Minimum value for epsilon after decay
         """
         super().__init__(base_policy.n_states, base_policy.n_actions)
         self.base_policy = base_policy
-        self.epsilon = epsilon
+        self._initial_epsilon = epsilon
+        self._epsilon = epsilon
+        self.decay_rate = decay_rate
+        self.min_epsilon = min_epsilon
+
+    @property
+    def epsilon(self):
+        """Get current epsilon value."""
+        return self._epsilon
+
+    def decay_epsilon(self):
+        """
+        Decay the epsilon value if decay_rate is set.
+        Returns:
+            float: New epsilon value
+        """
+        if self.decay_rate is not None:
+            self._epsilon = max(self.min_epsilon, self._epsilon * self.decay_rate)
+        return self._epsilon
+
+    def reset_epsilon(self):
+        """Reset epsilon to its initial value."""
+        self._epsilon = self._initial_epsilon
 
     def get_action(self, state):
         """
@@ -261,7 +326,7 @@ class EpsilonGreedyPolicy(TabularPolicy):
         Returns:
             int: Action index
         """
-        if np.random.random() < self.epsilon:
+        if np.random.random() < self._epsilon:
             # Random action
             return np.random.choice(self.n_actions)
         else:
@@ -281,8 +346,8 @@ class EpsilonGreedyPolicy(TabularPolicy):
         base_probs = self.base_policy.get_action_probabilities(state)
 
         # Epsilon probability of random action, (1-epsilon) for base policy
-        probs = np.ones(self.n_actions) * (self.epsilon / self.n_actions)
-        probs += (1 - self.epsilon) * base_probs
+        probs = np.ones(self.n_actions) * (self._epsilon / self.n_actions)
+        probs += (1 - self._epsilon) * base_probs
 
         return probs
 
@@ -296,6 +361,15 @@ class EpsilonGreedyPolicy(TabularPolicy):
             value (float): The value used to update the policy
         """
         self.base_policy.update(state, action, value)
+
+    def update_from_value_fn(self, value_function):
+        """
+        Update the base policy.
+
+        Args:
+            value_function: The value function to use for the update
+        """
+        self.base_policy.update_from_value_fn(value_function)
 
 
 class SoftmaxPolicy(TabularPolicy):
