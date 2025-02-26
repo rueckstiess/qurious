@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from .experience import Experience, Transition
+from typing import Optional
 
 
 class Agent(ABC):
@@ -7,6 +9,10 @@ class Agent(ABC):
 
     An agent interacts with an environment by choosing actions and learning from experience.
     """
+
+    def __init__(self):
+        """Initialize an agent."""
+        self.experience = None  # Will be None by default
 
     @abstractmethod
     def choose_action(self, state):
@@ -37,6 +43,34 @@ class Agent(ABC):
         """Reset the agent's internal state (e.g., for a new episode)."""
         pass
 
+    def enable_experience_tracking(self, capacity: Optional[int] = None) -> None:
+        """
+        Enable experience tracking for the agent.
+
+        Args:
+            capacity: Maximum number of transitions to store (None for unlimited)
+        """
+        self.experience = Experience(capacity)
+
+    def disable_experience_tracking(self) -> None:
+        """Disable experience tracking."""
+        self.experience = None
+
+    def store_experience(self, state, action, reward, next_state, done) -> None:
+        """
+        Store a transition in the experience buffer if tracking is enabled.
+
+        Args:
+            state: Current state
+            action: Action taken
+            reward: Reward received
+            next_state: Next state
+            done: Whether the episode ended
+        """
+        if self.experience is not None:
+            transition = Transition(state, action, reward, next_state, done)
+            self.experience.add(transition)
+
 
 class TabularAgent(Agent):
     """
@@ -53,6 +87,7 @@ class TabularAgent(Agent):
             policy (Policy): The agent's policy
             value_function (ValueFunction, optional): The agent's value function
         """
+        super().__init__()
         self.policy = policy
         self.value_function = value_function
 

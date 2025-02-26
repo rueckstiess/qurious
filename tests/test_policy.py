@@ -7,7 +7,6 @@ import tempfile
 # Import the policy classes
 from mini_rl.policy import (
     DeterministicTabularPolicy,
-    StochasticTabularPolicy,
     EpsilonGreedyPolicy,
     SoftmaxPolicy,
 )
@@ -100,101 +99,6 @@ class TestDeterministicTabularPolicy(unittest.TestCase):
             self.assertEqual(loaded_policy.n_states, self.policy.n_states)
             self.assertEqual(loaded_policy.n_actions, self.policy.n_actions)
             assert_array_equal(loaded_policy.policy, self.policy.policy)
-        finally:
-            # Clean up
-            if os.path.exists(filepath):
-                os.remove(filepath)
-
-
-class TestStochasticTabularPolicy(unittest.TestCase):
-    def setUp(self):
-        """Set up policy for testing."""
-        self.n_states = 4
-        self.n_actions = 3
-        self.uniform_policy = StochasticTabularPolicy(self.n_states, self.n_actions, initialization="uniform")
-
-        # Set random seed for reproducibility
-        np.random.seed(42)
-        self.random_policy = StochasticTabularPolicy(self.n_states, self.n_actions, initialization="random")
-
-    def test_uniform_initialization(self):
-        """Test uniform initialization."""
-        expected = np.ones((self.n_states, self.n_actions)) / self.n_actions
-        assert_array_almost_equal(self.uniform_policy.policy, expected)
-
-    def test_random_initialization(self):
-        """Test random initialization."""
-        # Check that probabilities sum to 1 for each state
-        for s in range(self.n_states):
-            self.assertAlmostEqual(np.sum(self.random_policy.policy[s]), 1.0)
-
-        # Check that at least some probabilities are different (random)
-        self.assertTrue(np.std(self.random_policy.policy) > 0)
-
-    def test_invalid_initialization(self):
-        """Test invalid initialization raises error."""
-        with self.assertRaises(ValueError):
-            StochasticTabularPolicy(self.n_states, self.n_actions, initialization="invalid")
-
-    def test_get_action_probabilities(self):
-        """Test getting action probabilities."""
-        # For uniform policy, all actions should have equal probability
-        for s in range(self.n_states):
-            probs = self.uniform_policy.get_action_probabilities(s)
-            expected = np.ones(self.n_actions) / self.n_actions
-            assert_array_almost_equal(probs, expected)
-
-        # For random policy, should return the stored probabilities
-        for s in range(self.n_states):
-            probs = self.random_policy.get_action_probabilities(s)
-            assert_array_almost_equal(probs, self.random_policy.policy[s])
-
-    def test_get_action(self):
-        """Test sampling actions."""
-        # This is a probabilistic test
-        np.random.seed(42)
-
-        # For uniform policy, sample many actions and check distribution
-        state = 0
-        n_samples = 10000
-        actions = [self.uniform_policy.get_action(state) for _ in range(n_samples)]
-        action_counts = np.bincount(actions, minlength=self.n_actions)
-        action_probs = action_counts / n_samples
-
-        # Each action should be chosen with approximately equal probability
-        expected_probs = np.ones(self.n_actions) / self.n_actions
-        assert_array_almost_equal(action_probs, expected_probs, decimal=2)
-
-    def test_update(self):
-        """Test updating the policy."""
-        state = 1
-        action = 2
-        value = 10.0
-
-        # Update the policy for state 1, action 2
-        self.uniform_policy.update(state, action, value)
-
-        # After update, action 2 should have higher probability for state 1
-        probs = self.uniform_policy.get_action_probabilities(state)
-        self.assertTrue(probs[action] > 0.9)  # Should be close to 1.0
-        self.assertTrue(np.sum(probs) > 0.99)  # Sum should be close to 1.0
-
-    def test_save_and_load(self):
-        """Test saving and loading the policy."""
-        # Save to temporary file
-        with tempfile.NamedTemporaryFile(delete=False) as tmp:
-            filepath = tmp.name
-
-        try:
-            self.random_policy.save(filepath)
-
-            # Load the policy
-            loaded_policy = StochasticTabularPolicy.load(filepath)
-
-            # Check if loaded policy matches original
-            self.assertEqual(loaded_policy.n_states, self.random_policy.n_states)
-            self.assertEqual(loaded_policy.n_actions, self.random_policy.n_actions)
-            assert_array_almost_equal(loaded_policy.policy, self.random_policy.policy)
         finally:
             # Clean up
             if os.path.exists(filepath):
@@ -397,6 +301,32 @@ class TestSoftmaxPolicy(unittest.TestCase):
 
         # After update, action 2 should have much higher probability
         self.assertTrue(probs[action] > 0.9)  # Should be close to 1.0
+
+    def test_update_from_value_fn(self):
+        """Test updating policy from a value function."""
+
+        # Create a mock value function
+        class MockValueFunction:
+            def estimate_all_actions(self, state):
+                # Return different values for each state
+                values = {
+                    0: np.array([1.0, 2.0, -1.0, 0.0]),
+                    1: np.array([0.5, -0.5, 1.5, 0.0]),
+                    2: np.array([-1.0, 2.0, 0.0, 1.0]),
+                }
+                return values[state]
+
+        mock_value_fn = MockValueFunction()
+
+        # Update policy using mock value function
+        self.policy.update_from_value_fn(mock_value_fn)
+
+        # Check if action values were updated correctly
+        for state in range(self.n_states):
+            expected_values = mock_value_fn.estimate_all_actions(state)
+            assert_array_almost_equal(
+                self.policy.action_values[state], expected_values, err_msg=f"Action values mismatch for state {state}"
+            )
 
     def test_save_and_load(self):
         """Test saving and loading the policy."""

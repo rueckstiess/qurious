@@ -172,105 +172,6 @@ class DeterministicTabularPolicy(TabularPolicy):
             self.policy[state] = np.argmax(value_function.estimate_all_actions(state))
 
 
-class StochasticTabularPolicy(TabularPolicy):
-    """
-    A stochastic tabular policy.
-
-    For each state, this policy defines a probability distribution over actions.
-    """
-
-    def __init__(self, n_states, n_actions, initialization="uniform"):
-        """
-        Initialize a stochastic tabular policy.
-
-        Args:
-            n_states (int): Number of states
-            n_actions (int): Number of actions
-            initialization (str, optional): How to initialize the policy:
-                - 'uniform': Uniform distribution over actions
-                - 'random': Random probability distribution over actions
-        """
-        super().__init__(n_states, n_actions)
-
-        # Initialize policy probabilities
-        self.policy = np.zeros((n_states, n_actions))
-
-        if initialization == "uniform":
-            self.policy.fill(1.0 / n_actions)
-        elif initialization == "random":
-            # Generate random probabilities that sum to 1 for each state
-            for s in range(n_states):
-                self.policy[s] = np.random.dirichlet(np.ones(n_actions))
-        else:
-            raise ValueError(f"Unknown initialization: {initialization}")
-
-    def get_action(self, state):
-        """
-        Sample an action from the policy for the given state.
-
-        Args:
-            state (int): State index
-
-        Returns:
-            int: Sampled action index
-        """
-        return np.random.choice(self.n_actions, p=self.policy[state])
-
-    def get_action_probabilities(self, state):
-        """
-        Get probability distribution over actions for the given state.
-
-        Args:
-            state (int): State index
-
-        Returns:
-            numpy.ndarray: Probability distribution over actions
-        """
-        return self.policy[state]
-
-    def update(self, state, action, value):
-        """
-        Update the policy for a state-action pair based on a value.
-
-        This implementation uses a soft-max update rule.
-
-        Args:
-            state (int): State index
-            action (int): Action index
-            value (float): The value used to update the policy
-        """
-        # Initialize temperature parameter for softmax
-        temperature = 1.0
-
-        # Get current values for all actions in the state
-        values = np.zeros(self.n_actions)
-        values[action] = value
-
-        # Calculate softmax probabilities
-        exp_values = np.exp(values / temperature)
-        self.policy[state] = exp_values / np.sum(exp_values)
-
-    def update_from_value_fn(self, value_function):
-        """
-        Update the policy based on a value function.
-
-        This implementation uses a soft-max update rule.
-
-        Args:
-            value_function: The value function to use for the update
-        """
-        # Initialize temperature parameter for softmax
-        temperature = 0.1
-
-        for state in range(self.n_states):
-            # Get current values for all actions in the state using the proper method
-            values = value_function.estimate_all_actions(state)
-
-            # Calculate softmax probabilities
-            exp_values = np.exp(values / temperature)
-            self.policy[state] = exp_values / np.sum(exp_values)
-
-
 class EpsilonGreedyPolicy(TabularPolicy):
     """
     An epsilon-greedy policy based on a deterministic policy.
@@ -430,3 +331,14 @@ class SoftmaxPolicy(TabularPolicy):
             value (float): The new action value
         """
         self.action_values[state, action] = value
+
+    def update_from_value_fn(self, value_function):
+        """
+        Update the action values based on a value function.
+
+        Args:
+            value_function: The value function to use for the update
+        """
+        for state in range(self.n_states):
+            # Get values for all actions in the state
+            self.action_values[state] = value_function.estimate_all_actions(state)
