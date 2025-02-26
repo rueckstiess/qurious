@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import matplotlib.patches as patches
+import networkx as nx
 
 
 def visualize_grid_world(env, agent=None, value_function=None, plot_type="policy"):
@@ -93,7 +94,6 @@ def visualize_grid_world(env, agent=None, value_function=None, plot_type="policy
                             fc="black",
                             ec="black",
                             length_includes_head=True,
-                            alpha=0.7,
                         )
 
     elif plot_type == "value" and value_function is not None:
@@ -172,4 +172,114 @@ def visualize_grid_world(env, agent=None, value_function=None, plot_type="policy
     ax.legend(handles=legend_elements, loc="upper left", bbox_to_anchor=(1, 1))
 
     plt.tight_layout()
+    return fig, ax
+
+
+def visualize_mdp(mdp, env=None, layout_type="spring", show_rewards=True, threshold=0.01):
+    """
+    Visualize an MDP as a directed graph.
+
+    Args:
+        mdp: MarkovDecisionProcess object
+        env: Original environment (optional, for state labeling)
+        layout_type: Graph layout algorithm ('spring', 'circular', 'kamada_kawai', 'planar')
+        show_rewards: Whether to show rewards on edges
+        threshold: Minimum transition probability to display
+
+    Returns:
+        fig, ax: matplotlib figure and axis objects
+    """
+    # Create directed graph
+    G = nx.DiGraph()
+
+    # Add all states as nodes
+    for s in range(mdp.states):
+        # Label terminal states
+        is_terminal = s in mdp.terminal_states
+
+        # Create node label
+        if env is not None:
+            pos = env.index_to_state(s)
+            label = f"S{s}: {pos}"
+        else:
+            label = f"S{s}"
+
+        # Add node with properties
+        G.add_node(s, label=label, terminal=is_terminal)
+
+    # Add transitions as edges
+    for s in range(mdp.states):
+        for a in range(mdp.actions):
+            action_name = ["UP", "RIGHT", "DOWN", "LEFT"][a] if mdp.actions == 4 else f"A{a}"
+
+            for s_next in range(mdp.states):
+                prob = mdp.transition_probs[s, a, s_next]
+                reward = mdp.rewards[s, a, s_next]
+
+                # Only add significant transitions
+                if prob > threshold:
+                    G.add_edge(
+                        s,
+                        s_next,
+                        action=action_name,
+                        probability=prob,
+                        reward=reward,
+                        weight=prob,  # For layout algorithms
+                        label=f"{action_name}: {prob:.2f}" + (f", R={reward:.1f}" if show_rewards else ""),
+                    )
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(12, 10), dpi=150)
+
+    # Set up node positions based on layout type
+    if layout_type == "spring":
+        pos = nx.spring_layout(G, k=0.5, iterations=50)
+    elif layout_type == "circular":
+        pos = nx.circular_layout(G)
+    elif layout_type == "kamada_kawai":
+        pos = nx.kamada_kawai_layout(G)
+    elif layout_type == "planar":
+        try:
+            pos = nx.planar_layout(G)
+        except nx.NetworkXException:
+            # Fallback if graph is not planar
+            pos = nx.spring_layout(G)
+    else:
+        pos = nx.spring_layout(G)
+
+    # Draw nodes
+    terminal_nodes = [n for n in G.nodes if G.nodes[n]["terminal"]]
+    non_terminal_nodes = [n for n in G.nodes if not G.nodes[n]["terminal"]]
+
+    # Draw non-terminal nodes
+    nx.draw_networkx_nodes(G, pos, nodelist=non_terminal_nodes, node_color="lightblue", node_size=500, alpha=0.8)
+
+    # Draw terminal nodes with different color
+    nx.draw_networkx_nodes(G, pos, nodelist=terminal_nodes, node_color="lightgreen", node_size=500, alpha=0.8)
+
+    # Draw edges with varying thickness based on probability
+    for u, v, data in G.edges(data=True):
+        nx.draw_networkx_edges(
+            G,
+            pos,
+            edgelist=[(u, v)],
+            width=1,  # + 3 * data["probability"],
+            alpha=0.6,
+            edge_color="gray",
+            arrows=True,
+            arrowsize=10 + 10 * data["probability"],
+            connectionstyle=f"arc3,rad={0.1 if u != v else 0.3}",
+        )
+
+    # Draw node labels
+    nx.draw_networkx_labels(G, pos, labels=nx.get_node_attributes(G, "label"))
+
+    # Draw edge labels
+    edge_labels = nx.get_edge_attributes(G, "label")
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8)
+
+    # Set title and remove axis
+    plt.title("MDP State Transition Graph")
+    plt.axis("off")
+
     return fig, ax
