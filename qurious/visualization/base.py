@@ -74,8 +74,8 @@ class GridWorldVisualizer:
             "color_goal": (0, 1, 0, 0.5),
             "color_agent": (1, 0, 0, 0.5),
             # Figure settings
-            "figsize": (10, 8),
-            "dpi": 100,
+            "figsize": (5, 5),
+            "dpi": 150,
             "cmap": None,  # Will be created based on colors
             "text_fontsize": 9,
         }
@@ -198,28 +198,37 @@ class GridWorldVisualizer:
         # Initialize grid for base elements
         grid = np.zeros((self.env.height, self.env.width))
 
-        # Mark obstacles as 2
-        for r, c in self.env.obstacles:
-            if 0 <= r < self.env.height and 0 <= c < self.env.width:
-                grid[r, c] = 1
+        # # Mark obstacles as 1
+        # for r, c in self.env.obstacles:
+        #     if 0 <= r < self.env.height and 0 <= c < self.env.width:
+        #         grid[r, c] = 1
 
-        # Mark goals as 3
-        for r, c in self.env.goal_pos:
-            if 0 <= r < self.env.height and 0 <= c < self.env.width:
-                grid[r, c] = 2
+        # # Mark goals as 2
+        # for r, c in self.env.goal_pos:
+        #     if 0 <= r < self.env.height and 0 <= c < self.env.width:
+        #         grid[r, c] = 2
 
-        # Mark agent position as 4 if available
-        if hasattr(self.env, "position") and self.env.position is not None:
-            r, c = self.env.position
-            if 0 <= r < self.env.height and 0 <= c < self.env.width:
-                grid[r, c] = 3
+        # Mark agent position as 3 if available
+        # if hasattr(self.env, "position") and self.env.position is not None:
+        #     r, c = self.env.position
+        #     if 0 <= r < self.env.height and 0 <= c < self.env.width:
+        #         grid[r, c] = 3
+
+        # draw grid and agent layers first if available
+        grid_layer = self.get_layer("Grid")
+        if grid_layer:
+            grid_layer.render_matplotlib(fig, ax, grid, self.env)
+
+        agent_layer = self.get_layer("Agent")
+        if agent_layer:
+            agent_layer.render_matplotlib(fig, ax, grid, self.env)
 
         # Plot the base grid
-        ax.imshow(grid, cmap=self.config["cmap"])
+        ax.imshow(grid, cmap=self.config["cmap"], vmin=0, vmax=3)
 
         # Apply all enabled layers
         for layer in self.layers:
-            if layer.enabled:
+            if layer.name not in ["Grid", "Agent"] and layer.enabled:
                 layer.render_matplotlib(fig, ax, grid, self.env)
 
         # Major ticks

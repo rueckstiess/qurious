@@ -47,9 +47,19 @@ class GridLayer(Layer):
             grid: The current grid representation
             env: The grid world environment
         """
-        # In the base visualizer, we already render the grid with obstacles and goals
-        # This method is a placeholder for any additional grid-specific rendering
-        pass
+
+        # Initialize grid for base elements
+        # grid = np.zeros((env.height, env.width))
+
+        # Mark obstacles as 2
+        for r, c in env.obstacles:
+            if 0 <= r < env.height and 0 <= c < env.width:
+                grid[r, c] = 1  # Mark obstacles as 1
+
+        # Mark goals as 3
+        for r, c in env.goal_pos:
+            if 0 <= r < env.height and 0 <= c < env.width:
+                grid[r, c] = 2  # Mark goals as 2
 
 
 class AgentLayer(Layer):
@@ -98,6 +108,10 @@ class AgentLayer(Layer):
             grid: The current grid representation
             env: The grid world environment
         """
-        # The agent position is already rendered in the base grid
-        # This method is for any additional agent-specific rendering
-        pass
+
+        # Use provided position or get from environment
+        pos = self.position or env.position
+        if pos is not None:
+            r, c = pos
+            if 0 <= r < env.height and 0 <= c < env.width:
+                grid[r, c] = 3
