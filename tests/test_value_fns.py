@@ -5,7 +5,7 @@ import os
 import tempfile
 
 # Import the value function classes
-from mini_rl.value_fns import (
+from qurious.value_fns import (
     TabularStateValueFunction,
     TabularActionValueFunction,
 )

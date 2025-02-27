@@ -5,7 +5,7 @@ import os
 import tempfile
 
 # Import the policy classes
-from mini_rl.policy import (
+from qurious.policy import (
     DeterministicTabularPolicy,
     EpsilonGreedyPolicy,
     SoftmaxPolicy,

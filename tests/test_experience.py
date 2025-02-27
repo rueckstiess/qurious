@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from mini_rl.experience import Experience, Transition
+from qurious.experience import Experience, Transition
 
 
 class TestExperience(unittest.TestCase):

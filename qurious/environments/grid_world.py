@@ -1,5 +1,5 @@
 import numpy as np
-from mini_rl.mdp import MarkovDecisionProcess
+from qurious.mdp import MarkovDecisionProcess
 from .environment import Environment
 
 

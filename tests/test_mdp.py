@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from numpy.testing import assert_array_equal
 
-from mini_rl.mdp import MarkovDecisionProcess
+from qurious.mdp import MarkovDecisionProcess
 
 
 class TestMarkovDecisionProcess(unittest.TestCase):

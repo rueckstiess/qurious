@@ -2,9 +2,9 @@ import unittest
 import numpy as np
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 
-from mini_rl.agents import TabularAgent, ValueBasedAgent, QLearningAgent, SarsaAgent, ExpectedSarsaAgent
-from mini_rl.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
-from mini_rl.value_fns import TabularActionValueFunction
+from qurious.agents import TabularAgent, ValueBasedAgent, QLearningAgent, SarsaAgent, ExpectedSarsaAgent
+from qurious.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
+from qurious.value_fns import TabularActionValueFunction
 
 
 class TestTabularAgent(unittest.TestCase):

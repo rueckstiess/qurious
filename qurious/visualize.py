@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import matplotlib.patches as patches
 import networkx as nx
-from mini_rl.value_fns import StateValueFunction, ActionValueFunction
+from qurious.value_fns import StateValueFunction, ActionValueFunction
 
 
 def visualize_grid_world(env, agent=None, value_function=None, plot_type="policy"):

@@ -1,5 +1,5 @@
 import unittest
-from mini_rl.environments.grid_world import GridWorld
+from qurious.environments.grid_world import GridWorld
 
 
 class TestGridWorld(unittest.TestCase):
