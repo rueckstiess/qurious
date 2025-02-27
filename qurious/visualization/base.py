@@ -51,7 +51,7 @@ class Layer(ABC):
 class GridWorldVisualizer:
     """Base class for grid world visualization."""
 
-    def __init__(self, env: Any):
+    def __init__(self, env: Any, theme="light"):
         """
         Initialize the visualizer.
 
@@ -69,15 +69,14 @@ class GridWorldVisualizer:
             "ascii_goal": "G",
             "ascii_agent": "A",
             # Matplotlib colors
-            "color_empty": "white",
-            "color_obstacle": "gray",
-            "color_goal": "green",
-            "color_agent": "red",
+            "color_empty": (0, 0, 0, 0),
+            "color_obstacle": (0, 0, 0, 1) if theme == "light" else (1, 1, 1, 1),
+            "color_goal": (0, 1, 0, 0.5),
+            "color_agent": (1, 0, 0, 0.5),
             # Figure settings
             "figsize": (10, 8),
             "dpi": 100,
             "cmap": None,  # Will be created based on colors
-            "grid_alpha": 0.7,
             "text_fontsize": 9,
         }
 
@@ -193,20 +192,23 @@ class GridWorldVisualizer:
         dpi = dpi or self.config["dpi"]
         fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
 
+        # hide background patch
+        fig.patch.set_visible(False)
+
         # Initialize grid for base elements
         grid = np.zeros((self.env.height, self.env.width))
 
-        # Mark obstacles as 1
+        # Mark obstacles as 2
         for r, c in self.env.obstacles:
             if 0 <= r < self.env.height and 0 <= c < self.env.width:
                 grid[r, c] = 1
 
-        # Mark goals as 2
+        # Mark goals as 3
         for r, c in self.env.goal_pos:
             if 0 <= r < self.env.height and 0 <= c < self.env.width:
                 grid[r, c] = 2
 
-        # Mark agent position as 3 if available
+        # Mark agent position as 4 if available
         if hasattr(self.env, "position") and self.env.position is not None:
             r, c = self.env.position
             if 0 <= r < self.env.height and 0 <= c < self.env.width:
@@ -215,31 +217,51 @@ class GridWorldVisualizer:
         # Plot the base grid
         ax.imshow(grid, cmap=self.config["cmap"])
 
-        # Add grid lines
-        for i in range(self.env.width + 1):
-            ax.axvline(i - 0.5, color="black", linewidth=1, alpha=self.config["grid_alpha"])
-        for i in range(self.env.height + 1):
-            ax.axhline(i - 0.5, color="black", linewidth=1, alpha=self.config["grid_alpha"])
-
         # Apply all enabled layers
         for layer in self.layers:
             if layer.enabled:
                 layer.render_matplotlib(fig, ax, grid, self.env)
 
-        # Add labels and set ticks
-        ax.set_xticks(range(self.env.width))
-        ax.set_yticks(range(self.env.height))
-        ax.set_xticklabels(range(self.env.width))
-        ax.set_yticklabels(range(self.env.height))
+        # Major ticks
+        ax.set_xticks(np.arange(0, self.env.width, 1))
+        ax.set_yticks(np.arange(0, self.env.height, 1))
+
+        # Minor ticks
+        ax.set_xticks(np.arange(-0.5, self.env.width, 1), minor=True)
+        ax.set_yticks(np.arange(-0.5, self.env.height, 1), minor=True)
+        ax.grid(which="minor", color=self.config["color_obstacle"], linestyle="-", linewidth=1)
+
+        # Change axis and label color
+        ax.spines["bottom"].set_color(self.config["color_obstacle"])
+        ax.spines["top"].set_color(self.config["color_obstacle"])
+        ax.spines["right"].set_color(self.config["color_obstacle"])
+        ax.spines["left"].set_color(self.config["color_obstacle"])
+        ax.xaxis.label.set_color(self.config["color_obstacle"])
+        ax.yaxis.label.set_color(self.config["color_obstacle"])
+        ax.tick_params(axis="x", colors=self.config["color_obstacle"])
+        ax.tick_params(axis="y", colors=self.config["color_obstacle"])
 
         # Create legend
         legend_elements = [
-            patches.Patch(facecolor=self.config["color_empty"], edgecolor="black", label="Empty"),
-            patches.Patch(facecolor=self.config["color_obstacle"], edgecolor="black", label="Obstacle"),
-            patches.Patch(facecolor=self.config["color_goal"], edgecolor="black", label="Goal"),
-            patches.Patch(facecolor=self.config["color_agent"], edgecolor="black", label="Agent"),
+            patches.Patch(facecolor=self.config["color_empty"], edgecolor=self.config["color_obstacle"], label="Empty"),
+            patches.Patch(
+                facecolor=self.config["color_obstacle"], edgecolor=self.config["color_obstacle"], label="Obstacle"
+            ),
+            patches.Patch(facecolor=self.config["color_goal"], edgecolor=self.config["color_obstacle"], label="Goal"),
+            patches.Patch(facecolor=self.config["color_agent"], edgecolor=self.config["color_obstacle"], label="Agent"),
         ]
-        ax.legend(handles=legend_elements, loc="upper left", bbox_to_anchor=(1, 1))
+
+        # font color of legend text
+        ax.legend(
+            handles=legend_elements,
+            loc="upper left",
+            bbox_to_anchor=(1, 1),
+            frameon=False,
+            facecolor=self.config["color_empty"],
+            edgecolor=self.config["color_obstacle"],
+            fontsize=self.config["text_fontsize"],
+            labelcolor=self.config["color_obstacle"],
+        )
 
         plt.tight_layout()
         return fig, ax
@@ -270,6 +292,9 @@ class GridWorldVisualizer:
             filepath: Path to save the figure
             **kwargs: Additional arguments to pass to plt.savefig
         """
-        fig, _ = self.render_matplotlib()
-        fig.savefig(filepath, **kwargs)
+        figsize = kwargs.get("figsize") or self.config["figsize"]
+        dpi = kwargs.get("dpi") or self.config["dpi"]
+
+        fig, _ = self.render_matplotlib(figsize=figsize, dpi=dpi)
+        fig.savefig(filepath, transparent=True, dpi=dpi)
         plt.close(fig)
