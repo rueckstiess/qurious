@@ -109,6 +109,10 @@ class Experience:
         """Get the number of stored transitions."""
         return len(self.buffer)
 
+    def __len__(self) -> int:
+        """Get the number of stored transitions."""
+        return self.size
+
     def __iter__(self) -> Iterator[Transition]:
         """
         Iterate over all transitions in order of recording.

@@ -73,6 +73,7 @@ class GridWorldVisualizer:
             "color_obstacle": (0, 0, 0, 1) if theme == "light" else (1, 1, 1, 1),
             "color_goal": (0, 1, 0, 0.5),
             "color_agent": (1, 0, 0, 0.5),
+            "color_grid": (0.5, 0.5, 0.5, 1),
             # Figure settings
             "figsize": (5, 5),
             "dpi": 150,
@@ -176,7 +177,7 @@ class GridWorldVisualizer:
 
         return result
 
-    def render_matplotlib(self, figsize=None, dpi=None) -> Tuple[plt.Figure, plt.Axes]:
+    def render_matplotlib(self, fig=None, ax=None, figsize=None, dpi=None) -> Tuple[plt.Figure, plt.Axes]:
         """
         Render the grid world using matplotlib.
 
@@ -190,7 +191,8 @@ class GridWorldVisualizer:
         # Create figure and axis
         figsize = figsize or self.config["figsize"]
         dpi = dpi or self.config["dpi"]
-        fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+        if fig is None and ax is None:
+            fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
 
         # hide background patch
         fig.patch.set_visible(False)
@@ -238,7 +240,7 @@ class GridWorldVisualizer:
         # Minor ticks
         ax.set_xticks(np.arange(-0.5, self.env.width, 1), minor=True)
         ax.set_yticks(np.arange(-0.5, self.env.height, 1), minor=True)
-        ax.grid(which="minor", color=self.config["color_obstacle"], linestyle="-", linewidth=1)
+        ax.grid(which="minor", color=self.config["color_grid"], linestyle="-", linewidth=1)
 
         # Change axis and label color
         ax.spines["bottom"].set_color(self.config["color_obstacle"])
