@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import patches
 from typing import Any, Optional, Tuple
 
 from qurious.visualization.base import Layer
@@ -61,6 +62,31 @@ class GridLayer(Layer):
             if 0 <= r < env.height and 0 <= c < env.width:
                 grid[r, c] = 2  # Mark goals as 2
 
+        # Get existing legend handles and labels
+        handles, _ = ax.get_legend().legend_handles, ax.get_legend().get_texts()
+
+        # Create agent patch
+        extra_patches = [
+            patches.Patch(
+                facecolor=self.config["color_obstacle"], edgecolor=self.config["color_obstacle"], label="Obstacle"
+            ),
+            patches.Patch(facecolor=self.config["color_goal"], edgecolor=self.config["color_obstacle"], label="Goal"),
+        ]
+
+        # Add new patch to existing handles and update legend
+        handles.extend(extra_patches)
+        ax.legend(
+            handles=handles,
+            loc="upper center",
+            bbox_to_anchor=(0.5, 1.1),
+            ncols=len(handles),
+            frameon=False,
+            facecolor=self.config["color_empty"],
+            edgecolor=self.config["color_obstacle"],
+            fontsize=self.config["text_fontsize"],
+            labelcolor=self.config["color_obstacle"],
+        )
+
 
 class AgentLayer(Layer):
     """Layer for rendering the agent position."""
@@ -115,3 +141,25 @@ class AgentLayer(Layer):
             r, c = pos
             if 0 <= r < env.height and 0 <= c < env.width:
                 grid[r, c] = 3
+
+        # Get existing legend handles and labels
+        handles, _ = ax.get_legend().legend_handles, ax.get_legend().get_texts()
+
+        # Create agent patch
+        agent_patch = patches.Patch(
+            facecolor=self.config["color_agent"], edgecolor=self.config["color_obstacle"], label="Agent"
+        )
+
+        # Add new patch to existing handles and update legend
+        handles.append(agent_patch)
+        ax.legend(
+            handles=handles,
+            loc="upper center",
+            bbox_to_anchor=(0.5, 1.1),
+            ncols=len(handles),
+            frameon=False,
+            facecolor=self.config["color_empty"],
+            edgecolor=self.config["color_obstacle"],
+            fontsize=self.config["text_fontsize"],
+            labelcolor=self.config["color_obstacle"],
+        )

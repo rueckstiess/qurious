@@ -12,7 +12,7 @@ from qurious.visualization import (
     GridLayer,
     AgentLayer,
     PolicyLayer,
-    ValueFunctionLayer,
+    StateValueLayer,
     ActionValueLayer,
     TrajectoryLayer,
     EligibilityTraceLayer,
@@ -373,7 +373,7 @@ def example_advanced_composition():
     vis = GridWorldVisualizer(env)
     vis.add_layer(GridLayer())
     vis.add_layer(AgentLayer())
-    vis.add_layer(ValueFunctionLayer(v_func, alpha=0.3))
+    vis.add_layer(StateValueLayer(v_func, alpha=0.3))
     vis.add_layer(PolicyLayer(policy, arrow_scale=0.8))
     vis.add_layer(TrajectoryLayer(transitions))
     vis.add_layer(EligibilityTraceLayer(traces, alpha=0.3))

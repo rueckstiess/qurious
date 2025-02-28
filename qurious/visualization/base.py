@@ -19,6 +19,16 @@ class Layer(ABC):
         """
         self.name = name or self.__class__.__name__
         self.enabled = enabled
+        self.config = None
+
+    def set_config(self, config: dict) -> None:
+        """
+        Set the configuration for the layer.
+
+        Args:
+            config: Dictionary of configuration options
+        """
+        self.config = config
 
     @abstractmethod
     def render_ascii(self, grid: np.ndarray, env: Any) -> np.ndarray:
@@ -106,6 +116,7 @@ class GridWorldVisualizer:
             Self for method chaining
         """
         self.layers.append(layer)
+        layer.set_config(self.config)
         return self
 
     def get_layer(self, layer_name: str) -> Optional[Layer]:
@@ -216,6 +227,29 @@ class GridWorldVisualizer:
         #     if 0 <= r < self.env.height and 0 <= c < self.env.width:
         #         grid[r, c] = 3
 
+        # Create legend
+        legend_elements = [
+            patches.Patch(facecolor=self.config["color_empty"], edgecolor=self.config["color_obstacle"], label="Empty"),
+            # patches.Patch(
+            #     facecolor=self.config["color_obstacle"], edgecolor=self.config["color_obstacle"], label="Obstacle"
+            # ),
+            # patches.Patch(facecolor=self.config["color_goal"], edgecolor=self.config["color_obstacle"], label="Goal"),
+            # patches.Patch(facecolor=self.config["color_agent"], edgecolor=self.config["color_obstacle"], label="Agent"),
+        ]
+
+        # place legend above the plot
+        ax.legend(
+            loc="upper center",
+            handles=legend_elements,
+            bbox_to_anchor=(0.5, 1.1),
+            ncols=len(legend_elements),
+            frameon=False,
+            facecolor=self.config["color_empty"],
+            edgecolor=self.config["color_obstacle"],
+            fontsize=self.config["text_fontsize"],
+            labelcolor=self.config["color_obstacle"],
+        )
+
         # draw grid and agent layers first if available
         grid_layer = self.get_layer("Grid")
         if grid_layer:
@@ -251,28 +285,6 @@ class GridWorldVisualizer:
         ax.yaxis.label.set_color(self.config["color_obstacle"])
         ax.tick_params(axis="x", colors=self.config["color_obstacle"])
         ax.tick_params(axis="y", colors=self.config["color_obstacle"])
-
-        # Create legend
-        legend_elements = [
-            patches.Patch(facecolor=self.config["color_empty"], edgecolor=self.config["color_obstacle"], label="Empty"),
-            patches.Patch(
-                facecolor=self.config["color_obstacle"], edgecolor=self.config["color_obstacle"], label="Obstacle"
-            ),
-            patches.Patch(facecolor=self.config["color_goal"], edgecolor=self.config["color_obstacle"], label="Goal"),
-            patches.Patch(facecolor=self.config["color_agent"], edgecolor=self.config["color_obstacle"], label="Agent"),
-        ]
-
-        # font color of legend text
-        ax.legend(
-            handles=legend_elements,
-            loc="upper left",
-            bbox_to_anchor=(1, 1),
-            frameon=False,
-            facecolor=self.config["color_empty"],
-            edgecolor=self.config["color_obstacle"],
-            fontsize=self.config["text_fontsize"],
-            labelcolor=self.config["color_obstacle"],
-        )
 
         plt.tight_layout()
         return fig, ax
