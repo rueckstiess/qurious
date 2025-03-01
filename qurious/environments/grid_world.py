@@ -36,7 +36,7 @@ class GridWorld(Environment):
             height (int): Height of the grid
             start_pos (tuple): Starting position (row, column)
             goal_pos (list): List of goal positions [(row, column), ...]
-            obstacles (list): List of obstacle positions [(row, column), ...]
+            obstacles (float, list): Ratio of obstacles, or list of obstacle positions [(row, column), ...]
             terminal_reward (float): Reward for reaching a goal
             step_penalty (float): Penalty for each step taken
             max_steps (int): Maximum steps before episode terminates
@@ -45,7 +45,18 @@ class GridWorld(Environment):
         self.height = height
         self.start_pos = start_pos
         self.goal_pos = goal_pos if goal_pos is not None else [(height - 1, width - 1)]
-        self.obstacles = obstacles if obstacles is not None else []
+
+        if isinstance(obstacles, float):
+            # Generate random obstacles
+            num_obstacles = int(obstacles * width * height)
+            self.obstacles = [(np.random.randint(height), np.random.randint(width)) for _ in range(num_obstacles)]
+            if start_pos in self.obstacles:
+                self.obstacles.remove(start_pos)  # Ensure start position is not an obstacle
+            for goal in self.goal_pos:
+                if goal in self.obstacles:
+                    self.obstacles.remove(goal)  # Ensure goal position is not an obstacle
+        else:
+            self.obstacles = obstacles if obstacles is not None else []
         self.terminal_reward = terminal_reward
         self.step_penalty = step_penalty
         self.max_steps = max_steps
