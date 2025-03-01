@@ -15,7 +15,7 @@ class Config:
     }
 
     # SFT Settings
-    sft_epochs = 3  # SFT epochs for world model
+    sft_epochs = 5  # SFT epochs for world model
     sft_batch_size = 8  # Batch size for SFT
     sft_learning_rate = 3e-4  # SFT learning rate
 
