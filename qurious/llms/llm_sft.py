@@ -9,6 +9,8 @@ from transformers import (
 )
 from peft import LoraConfig, get_peft_model, TaskType
 from sklearn.model_selection import train_test_split
+import wandb
+from datetime import datetime
 
 from .utils import load_maze_data, evaluate_model
 from .config import Config
@@ -20,6 +22,20 @@ data_path = Path(config.data_dir)
 
 
 def main():
+    # Initialize wandb
+    run_name = f"grid-world-sft-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    wandb.init(
+        project="qurious",
+        name=run_name,
+        config={
+            "model": config.base_model,
+            "learning_rate": config.sft_learning_rate,
+            "epochs": config.sft_epochs,
+            "batch_size": config.sft_batch_size,
+            "lora_config": config.peft_config,
+        },
+    )
+
     # Load model and tokenizer
     model_name = config.base_model
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -72,7 +88,9 @@ def main():
     tokenized_eval_dataset = eval_dataset.map(tokenize_chat, batched=True, remove_columns=["messages"])
 
     # print max length of tokenized sequences
-    print(f"Max length of tokenized sequences: {max(len(x) for x in tokenized_train_dataset['input_ids'])}")
+    max_seq_length = max(len(x) for x in tokenized_train_dataset["input_ids"])
+    print(f"Max length of tokenized sequences: {max_seq_length}")
+    wandb.log({"max_sequence_length": max_seq_length})
 
     # Data collator
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
@@ -99,6 +117,7 @@ def main():
         fp16=False,  # Mac Metal backend works best with defaults, not fp16
         optim="adamw_torch",  # Use standard PyTorch optimizer
         remove_unused_columns=False,
+        report_to="wandb",  # Enable wandb reporting
     )
 
     # Create Trainer
@@ -116,6 +135,13 @@ def main():
     # Evaluate before training
     accuracy, preds, refs = evaluate_model(model, tokenizer, test_data, batch_size=16)
     print(f"Test Accuracy before training: {accuracy:.4f}")
+    wandb.log({"accuracy_before_training": accuracy})
+
+    # Create a table to show example predictions before training
+    examples_table_before = wandb.Table(columns=["example_id", "maze", "prediction", "actual"])
+    for i in range(min(5, len(preds))):
+        examples_table_before.add_data(i, test_data[i]["messages"][1]["content"], preds[i], refs[i])
+    wandb.log({"examples_before_training": examples_table_before})
 
     # Train the model
     try:
@@ -124,12 +150,20 @@ def main():
         print("Training interrupted. Saving current model state...")
 
     # Save the model
-    model.save_pretrained("./grid_world_lora_adapter")
-    tokenizer.save_pretrained("./grid_world_lora_adapter")
+    output_dir = f"./grid_world_lora_adapter-{run_name}"
+    model.save_pretrained(output_dir)
+    tokenizer.save_pretrained(output_dir)
 
     # Evaluate
     accuracy, preds, refs = evaluate_model(model, tokenizer, test_data, batch_size=16)
     print(f"Test Accuracy after training: {accuracy:.4f}")
+    wandb.log({"accuracy_after_training": accuracy})
+
+    # Create a table to show example predictions after training
+    examples_table_after = wandb.Table(columns=["example_id", "maze", "prediction", "actual"])
+    for i in range(min(10, len(preds))):
+        examples_table_after.add_data(i, test_data[i]["messages"][1]["content"], preds[i], refs[i])
+    wandb.log({"examples_after_training": examples_table_after})
 
     # Print some examples
     for i in range(min(10, len(preds))):
@@ -138,6 +172,9 @@ def main():
         print(f"  Predicted: {preds[i]}")
         print(f"  Actual: {refs[i]}")
         print("")
+
+    # Finish the wandb run
+    wandb.finish()
 
 
 if __name__ == "__main__":
