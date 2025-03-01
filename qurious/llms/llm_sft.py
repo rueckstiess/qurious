@@ -11,11 +11,17 @@ from peft import LoraConfig, get_peft_model, TaskType
 from sklearn.model_selection import train_test_split
 
 from .utils import load_maze_data, evaluate_model
+from .config import Config
+
+from pathlib import Path
+
+config = Config()
+data_path = Path(config.data_dir)
 
 
 def main():
     # Load model and tokenizer
-    model_name = "meta-llama/Llama-3.2-3B-Instruct"
+    model_name = config.base_model
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     # Ensure the tokenizer has a padding token
@@ -34,18 +40,14 @@ def main():
     # Define LoRA configuration - optimized for Mac
     lora_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
-        r=8,  # Reduced rank for faster training on Mac
-        lora_alpha=16,
-        lora_dropout=0.05,
-        target_modules=["q_proj", "v_proj", "o_proj"],  # Reduced parameter count
-        bias="none",
+        **config.peft_config,
     )
 
     # Apply LoRA to the model
     model = get_peft_model(model, lora_config)
 
     # Load conversation data (replace with your actual data)
-    conversations = load_maze_data("./data/trajectories_train.json")
+    conversations = load_maze_data(data_path / "trajectories_train.json")
 
     # Split data into training and evaluation sets
     train_data, eval_data = train_test_split(conversations, test_size=0.2, random_state=42)
@@ -77,22 +79,22 @@ def main():
 
     # Set up training arguments - optimized for Mac
     training_args = TrainingArguments(
-        output_dir="./results",
-        num_train_epochs=3,
-        per_device_train_batch_size=8,  # Smaller batch size for Mac GPU
-        per_device_eval_batch_size=8,
+        output_dir=config.output_dir,
+        num_train_epochs=config.sft_epochs,
+        per_device_train_batch_size=config.sft_batch_size,
+        per_device_eval_batch_size=config.sft_batch_size,
         gradient_accumulation_steps=2,  # Increased to compensate for smaller batch size
-        learning_rate=3e-4,
+        learning_rate=config.sft_learning_rate,
         warmup_steps=100,
         lr_scheduler_type="cosine",
         warmup_ratio=0.1,
         weight_decay=0.01,
-        logging_dir="./logs",
-        logging_steps=10,
+        logging_dir=config.log_dir,
+        logging_steps=config.log_interval,
         eval_strategy="steps",
-        eval_steps=100,
+        eval_steps=config.eval_interval,
         save_strategy="steps",
-        save_steps=100,
+        save_steps=config.save_interval,
         bf16=False,  # Mac doesn't support bf16
         fp16=False,  # Mac Metal backend works best with defaults, not fp16
         optim="adamw_torch",  # Use standard PyTorch optimizer
@@ -109,7 +111,7 @@ def main():
     )
 
     # Prepare test data (for this example, using eval_dataset)
-    test_data = load_maze_data("./data/trajectories_test.json")
+    test_data = load_maze_data(data_path / "trajectories_test.json")
 
     # Evaluate before training
     accuracy, preds, refs = evaluate_model(model, tokenizer, test_data, batch_size=16)

@@ -113,6 +113,7 @@ def evaluate_model(model, tokenizer, test_data, batch_size=8):
                 do_sample=False,  # Deterministic generation
                 temperature=None,  # Explicitly unset temperature for deterministic generation
                 top_p=None,  # Explicitly unset top_p for deterministic generation
+                top_k=None,
                 use_cache=True,
                 pad_token_id=tokenizer.pad_token_id,
             )

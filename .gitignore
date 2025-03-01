@@ -6,5 +6,6 @@ __pycache__
 .pytest_cache
 *_adapter*
 results/
+outputs/
 logs/
 

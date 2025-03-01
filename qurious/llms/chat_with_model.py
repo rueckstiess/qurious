@@ -3,11 +3,15 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 import argparse
 
+from config import Config
+
+config = Config()
+
 
 def main():
     parser = argparse.ArgumentParser(description="Chat with a fine-tuned model")
     parser.add_argument("--adapter", default="./grid_world_lora_adapter", help="Path to the fine-tuned model adapter")
-    parser.add_argument("--base_model", default="meta-llama/Llama-3.2-1B-Instruct", help="Base model name")
+    parser.add_argument("--base_model", default=config.base_model, help="Base model name")
     args = parser.parse_args()
 
     # Load the base model and tokenizer
