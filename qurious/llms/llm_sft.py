@@ -63,7 +63,7 @@ def main():
     model = get_peft_model(model, lora_config)
 
     # Load conversation data (replace with your actual data)
-    conversations = load_maze_data(data_path / "trajectories_train.json")
+    conversations = load_maze_data(data_path / "trajectories_100.json")
 
     # Split data into training and evaluation sets
     train_data, eval_data = train_test_split(conversations, test_size=0.2, random_state=42)
@@ -79,7 +79,7 @@ def main():
             return_dict=True,
             return_tensors="pt",
             add_generation_prompt=False,
-            max_length=200,
+            max_length=256,
             truncation=True,
             padding=True,
         )
@@ -130,7 +130,7 @@ def main():
     )
 
     # Prepare test data (for this example, using eval_dataset)
-    test_data = load_maze_data(data_path / "trajectories_test.json")
+    test_data = load_maze_data(data_path / "trajectories_100.json")
 
     # Evaluate before training
     accuracy, preds, refs = evaluate_model(model, tokenizer, test_data, batch_size=16)

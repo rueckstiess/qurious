@@ -2,7 +2,6 @@ import random
 import argparse
 import json
 
-from qurious.environments import GridWorld
 from qurious.agents import SarsaAgent
 
 from qurious.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
@@ -13,29 +12,7 @@ from qurious.visualization import GridWorldVisualizer, AgentLayer, GridLayer, Po
 
 from time import sleep
 
-
-def make_env(width, height):
-    # create random start position in grid
-    start_pos = (random.randint(0, height - 1), random.randint(0, width - 1))
-
-    # create random goal position in grid (different from start)
-    while True:
-        goal_pos = (random.randint(0, height - 1), random.randint(0, width - 1))
-        if goal_pos != start_pos:
-            break
-
-    # Create a maze with a guaranteed path
-    env = GridWorld(
-        width=width,
-        height=height,
-        start_pos=start_pos,
-        goal_pos=[goal_pos],
-        obstacles=0.2,
-        terminal_reward=0.0,
-        step_penalty=0.1,
-        max_steps=100,
-    )
-    return env
+from .utils import make_env
 
 
 def create_agent(env):
@@ -83,13 +60,9 @@ def collect_trajectory(env, agent):
 
     # reset env and store first state
     env.reset()
-    env_asciis = [viz.render_ascii()]
-    print(env.render())
+    env_ascii = viz.render_ascii()
 
-    def step_callback(*args, **kwargs):
-        env_asciis.append(viz.render_ascii())
-
-    run_agent(env, agent, num_episodes=1, step_callback=step_callback)
+    run_agent(env, agent, num_episodes=1)
 
     action_strs = {
         0: "up",
@@ -98,16 +71,26 @@ def collect_trajectory(env, agent):
         3: "left",
     }
 
-    actions = [action_strs[transition.action] for transition in agent.experience]
-    env_asciis = env_asciis[:-1]
+    numeric_actions = [int(transition.action) for transition in agent.experience]
+    actions = ", ".join([action_strs[a] for a in numeric_actions])
 
+    print(env_ascii)
     if env.index_to_state(agent.experience.get_current_transition().next_state) not in env.goal_pos:
-        print("goal unreachable\n")
-        trajectory = [{"env": env.render(), "action": "goal unreachable", "size": env.width}]
-        return trajectory
+        print("goal not reached\n")
+        return None
+    print(f"Actions: {actions}\n")
 
     trajectory = [
-        {"env": env_ascii, "action": action, "size": env.width} for env_ascii, action in zip(env_asciis, actions)
+        {
+            "env": env_ascii,
+            "size": env.width,
+            "actions": actions,
+            "numeric_actions": numeric_actions,
+            "n_steps": len(numeric_actions),
+            "start_pos": env.start_pos,
+            "goal_pos": env.goal_pos[0],
+            "obstacles": env.obstacles,
+        }
     ]
     return trajectory
 
@@ -124,7 +107,7 @@ def main():
     for _ in range(args.num_trajectories):
         # Generate random grid size
         size = random.randint(args.min_grid_size, args.max_grid_size)
-        env = make_env(width=size, height=size)
+        env = make_env(size=size)
         agent = create_agent(env)
 
         train_agent(env, agent, num_episodes=2000)
@@ -133,7 +116,8 @@ def main():
         agent.policy = agent.policy.base_policy
 
         trajectory = collect_trajectory(env, agent)
-        all_trajectories.extend(trajectory)
+        if trajectory:
+            all_trajectories.append(trajectory)
 
     # save trajectories as json file
     with open("trajectories.json", "w") as f:
