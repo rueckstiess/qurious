@@ -1,0 +1,24 @@
+# this config file launches an instance in the Lambda Labs cloud.
+# to create the instance, run this with desired cluster name:
+# `sky launch sky-a100-lambda.yml -c <clustername>`
+# then use `sky start <clustername>` and `sky stop <clustername>` to start/stop the instance
+
+resources:
+  # Optional; if left out, automatically pick the cheapest cloud.
+  cloud: lambda
+  accelerators: A100:1
+  region: asia-south-1
+
+# Working directory (optional) containing the project codebase.
+# Its contents are synced to ~/sky_workdir/ on the cluster.
+workdir: .
+
+# Environment variables
+envs:
+  SKY_REMOTE: true
+
+# Invoked under the workdir (i.e., can use its files).
+setup: |
+  pip install -r requirements.txt
+  pip install -e ".[dev]"
+  pip install torch==2.2.1+cu118 -f https://download.pytorch.org/whl/torch_stable.html

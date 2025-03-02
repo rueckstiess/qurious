@@ -21,8 +21,8 @@ class Config:
 
     # Logging and Evaluation
     log_interval = 10  # Log every N episodes
-    eval_interval = 100  # Evaluate every N episodes
-    save_interval = 100  # Save models every N episodes
+    eval_interval = 1000  # Evaluate every N episodes
+    save_interval = 1000  # Save models every N episodes
     max_eval_samples = 100  # Maximum samples for evaluation
 
     # Paths
