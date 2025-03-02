@@ -121,7 +121,6 @@ def main():
         gradient_accumulation_steps=2,  # Increased to compensate for smaller batch size
         learning_rate=config.sft_learning_rate,
         warmup_steps=100,
-        lr_scheduler_type="cosine",
         warmup_ratio=0.1,
         weight_decay=0.01,
         logging_dir=config.log_dir,

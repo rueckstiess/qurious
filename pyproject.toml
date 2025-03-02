@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["qurious"]
+package-dir = {"" = "."}
+
+[project]
+name = "qurious" 
+version = "0.1.0"
+description = "A Python package for reinforcement learning and LLM finetuning."
+readme = "README.md"
+authors = [
+    {name = "Thomas Rueckstiess", email = "me@tomr.au"}
+]
+license = {text = "MIT"}
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "matplotlib>=3.9.0",
+    "numpy>=1.26.0,<2.0.0",
+    "torch>=2.1.0",
+    "transformers>=4.49.0",
+    "scikit-learn>=1.6.1",
+    "peft>=0.14.0",
+    "datasets>=3.3.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "ipython>=8.0.0",
+    "skypilot[aws,gcp,lambda]==0.8.0"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/rueckstiess/qurious"
+"Bug Tracker" = "https://github.com/rueckstiess/qurious/issues"

@@ -1,5 +1,5 @@
-.venv
 *.gif
+.venv
 __pycache__
 *.pyc
 .DS_Store
@@ -9,3 +9,4 @@ results/
 outputs/
 logs/
 wandb/
+*.egg-info

@@ -1,0 +1,5 @@
+include README.md
+include LICENSE
+include requirements.txt
+recursive-include data *.json *.jsonl
+# Add other file patterns that should be included in the distribution
