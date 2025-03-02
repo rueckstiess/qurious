@@ -1,8 +1,6 @@
 import torch
 from tqdm import tqdm
-import json
-import random
-from qurious.environments import GridWorld
+from qurious.environments.grid_world import make_grid_world
 
 
 def auto_device():
@@ -19,30 +17,6 @@ def auto_device():
         device = torch.device("cpu")
     print(f"using device: {device}")
     return device
-
-
-def make_env(size, **kwargs):
-    # create random start position in grid
-    random_start_pos = (random.randint(0, size - 1), random.randint(0, size - 1))
-
-    # create random goal position in grid (different from start)
-    while True:
-        random_goal_pos = (random.randint(0, size - 1), random.randint(0, size - 1))
-        if random_goal_pos != random_start_pos:
-            break
-
-    # Create a maze with a guaranteed path
-    env = GridWorld(
-        width=size,
-        height=size,
-        start_pos=kwargs.get("start_pos", random_start_pos),
-        goal_pos=[kwargs.get("goal_pos", random_goal_pos)],
-        obstacles=kwargs.get("obstacles", 0.2),
-        terminal_reward=0.0,
-        step_penalty=0.1,
-        max_steps=100,
-    )
-    return env
 
 
 def extract_actions_from_responses(response):
@@ -78,8 +52,11 @@ def run_actions_in_env(example, numeric_actions):
         True if goal was reached, False otherwise
     """
     # make environment
-    env = make_env(
-        example["size"], start_pos=example["start_pos"], goal_pos=example["goal_pos"], obstacles=example["obstacles"]
+    env = make_grid_world(
+        example["size"],
+        start_pos=example["start_pos"],
+        goal_pos=[tuple(example["goal_pos"])],
+        obstacles=example["obstacles"],
     )
 
     for a in numeric_actions:
@@ -116,42 +93,6 @@ def calculate_accuracy(test_data, predictions):
 
     accuracy = correct / len(test_data)
     return accuracy
-
-
-def load_maze_data(filename):
-    """
-    Load maze conversation data.
-
-    Returns:
-        List of dicts with 'system', 'user', 'assistant
-    """
-
-    # load json into list of dicts
-    with open(filename, "r") as f:
-        maze_data = json.load(f)
-
-    conversations = [
-        {
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are a navigation assistant.",
-                },
-                {
-                    "role": "user",
-                    "content": f"Given the maze representation below, output the {example['n_steps']} steps "
-                    "to move the agent (A) to the goal (G), avoiding obstacles (#). Output steps as a "
-                    "comma-separated list of up, down, left, right. Do not include any other text.\n\n"
-                    + example["env"],
-                },
-                {"role": "assistant", "content": example["actions"]},
-            ],
-            **example,
-        }
-        for example in maze_data
-    ]
-
-    return conversations
 
 
 def print_predictions(preds, examples, num_examples=10):

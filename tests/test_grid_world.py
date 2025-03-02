@@ -1,5 +1,5 @@
 import unittest
-from qurious.environments.grid_world import GridWorld
+from qurious.environments.grid_world import GridWorld, make_grid_world
 
 
 class TestGridWorld(unittest.TestCase):
@@ -150,6 +150,134 @@ class TestGridWorld(unittest.TestCase):
         self.assertEqual(self.env.index_to_state(3), (0, 3))
         self.assertEqual(self.env.index_to_state(6), (1, 2))
         self.assertEqual(self.env.index_to_state(11), (2, 3))
+
+    def test_goal_pos_validation(self):
+        """Test that goal_pos must be a list of tuples."""
+        # Valid goal_pos (list of tuples)
+        GridWorld(width=4, height=3, goal_pos=[(1, 2), (3, 2)])
+
+        # Invalid goal_pos - not a tuple
+        with self.assertRaises(AssertionError):
+            GridWorld(width=4, height=3, goal_pos=[[1, 2]])
+
+        # Invalid goal_pos - tuple of wrong length
+        with self.assertRaises(AssertionError):
+            GridWorld(width=4, height=3, goal_pos=[(1, 2, 3)])
+
+        # Invalid goal_pos - mixed valid and invalid
+        with self.assertRaises(AssertionError):
+            GridWorld(width=4, height=3, goal_pos=[(1, 2), [3, 2]])
+
+
+class TestMakeGridWorld(unittest.TestCase):
+    def test_default_parameters(self):
+        """Test make_grid_world with default parameters."""
+        size = 5
+        env = make_grid_world(size)
+
+        # Check basic properties
+        self.assertEqual(env.width, size)
+        self.assertEqual(env.height, size)
+        self.assertIsInstance(env, GridWorld)
+
+        # Check that start_pos and goal_pos are within bounds
+        start_row, start_col = env.start_pos
+        self.assertTrue(0 <= start_row < size and 0 <= start_col < size)
+
+        # Check that goal_pos is a list with one element
+        self.assertEqual(len(env.goal_pos), 1)
+        goal_row, goal_col = env.goal_pos[0]
+        self.assertTrue(0 <= goal_row < size and 0 <= goal_col < size)
+
+        # Check that start and goal are different
+        self.assertNotEqual(env.start_pos, env.goal_pos[0])
+
+        # Check default obstacle ratio
+        self.assertIsInstance(env.obstacles, list)
+        expected_num_obstacles = int(0.2 * size * size)
+        # Allow some variance due to removing obstacles at start/goal
+        self.assertLessEqual(len(env.obstacles), expected_num_obstacles)
+
+        # Check step_penalty (there's a typo in the code, should be step_penalty not step_penality)
+        self.assertEqual(env.step_penalty, 0.1)
+
+    def test_custom_parameters(self):
+        """Test make_grid_world with custom parameters."""
+        size = 4
+        start_pos = (0, 0)
+        goal_pos = [(3, 3)]
+        obstacles = 0.1
+        terminal_reward = 5.0
+        step_penalty = 0.5
+
+        env = make_grid_world(
+            size,
+            start_pos=start_pos,
+            goal_pos=goal_pos,
+            obstacles=obstacles,
+            terminal_reward=terminal_reward,
+            step_penalty=step_penalty,
+        )
+
+        self.assertEqual(env.width, size)
+        self.assertEqual(env.height, size)
+        self.assertEqual(env.start_pos, start_pos)
+        self.assertEqual(env.goal_pos, goal_pos)
+        self.assertEqual(env.terminal_reward, terminal_reward)
+        self.assertEqual(env.step_penalty, step_penalty)
+
+        # Fix the typo and test again
+        env = make_grid_world(
+            size,
+            start_pos=start_pos,
+            goal_pos=goal_pos,
+            obstacles=obstacles,
+            terminal_reward=terminal_reward,
+            step_penalty=step_penalty,  # Using the misspelled parameter name
+        )
+        self.assertEqual(env.step_penalty, step_penalty)
+
+    def test_different_sizes(self):
+        """Test make_grid_world with different grid sizes."""
+        for size in [3, 5, 8]:
+            env = make_grid_world(size)
+            self.assertEqual(env.width, size)
+            self.assertEqual(env.height, size)
+            self.assertEqual(env.get_num_states(), size * size)
+
+    def test_explicit_obstacles(self):
+        """Test make_grid_world with explicitly provided obstacles."""
+        size = 4
+        obstacles = [(1, 1), (2, 2)]
+
+        env = make_grid_world(size, obstacles=obstacles)
+
+        self.assertEqual(env.obstacles, obstacles)
+        self.assertEqual(env.width, size)
+        self.assertEqual(env.height, size)
+
+    def test_max_steps_parameter(self):
+        """Test make_grid_world with custom max_steps parameter."""
+        size = 4
+        max_steps = 50
+
+        env = make_grid_world(size, max_steps=max_steps)
+
+        self.assertEqual(env.max_steps, max_steps)
+
+        # Take steps until we exceed max_steps
+        env.reset()
+        done = False
+        for _ in range(max_steps):
+            if done:
+                break
+            _, _, done, _ = env.step(GridWorld.RIGHT)
+
+        # The next step should terminate due to max_steps
+        if not done:
+            _, _, done, _ = env.step(GridWorld.RIGHT)
+            self.assertTrue(done)
+            self.assertEqual(env.step_count, max_steps + 1)
 
 
 if __name__ == "__main__":

@@ -1,18 +1,20 @@
 import random
 import argparse
-import json
+from datasets import Dataset
 
 from qurious.agents import SarsaAgent
-
 from qurious.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
 from qurious.value_fns import TabularActionValueFunction
-from qurious.utils import train_agent, run_agent, clear_output
+from qurious.utils import train_agent, run_agent
+from qurious.environments.grid_world import make_grid_world
+from qurious.visualization import GridWorldVisualizer, AgentLayer, GridLayer
 
-from qurious.visualization import GridWorldVisualizer, AgentLayer, GridLayer, PolicyLayer
 
-from time import sleep
-
-from .utils import make_env
+GRIDWORLD_SYSTEM_PROMPT = """You are an expert in navigating grid world environments. You will be given a \
+grid world environment and you need to find the optimal path from the agent position to the goal position. \
+The grid world is represented as a 2D array, where . represents an empty cell, # represents an obstacle, A \
+represents the agent and G represents the goal. You can move up, down, left, or right. Your task is to provide \
+a sequence of comma-separated actions (up, down, left, right) that lead to the goal. Do not include any other text."""
 
 
 def create_agent(env):
@@ -35,20 +37,6 @@ def create_agent(env):
     agent.enable_experience_tracking()
 
     return agent
-
-
-def visualize(env, agent):
-    viz = GridWorldVisualizer(env)
-    viz.add_layer(GridLayer())
-    viz.add_layer(AgentLayer())
-    viz.add_layer(PolicyLayer(agent.policy))
-
-    def step_callback(*args, **kwargs):
-        clear_output()
-        print(viz.render_ascii())
-        sleep(0.2)
-
-    run_agent(env, agent, num_episodes=1, step_callback=step_callback)
 
 
 def collect_trajectory(env, agent):
@@ -94,19 +82,46 @@ def collect_trajectory(env, agent):
     return trajectory
 
 
+def create_dataset(instances):
+    """Create a dataset from the given instances.
+    Args:
+        instances: List of instances
+
+    Returns:
+        DatasetDict
+    """
+
+    instances = [
+        {
+            "messages": [
+                {"role": "system", "content": GRIDWORLD_SYSTEM_PROMPT},
+                {"role": "user", "content": instance["env"]},
+                {"role": "assistant", "content": instance["actions"]},
+            ],
+            **instance,
+        }
+        for instance in instances
+    ]
+
+    dataset = Dataset.from_list(instances)
+    return dataset
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Generate grid world trajectories")
-    parser.add_argument("--num-trajectories", "-n", type=int, default=1, help="number of trajectories to generate")
+    parser = argparse.ArgumentParser(description="Generate grid world instances")
+    parser.add_argument("--output", "-o", type=str, default="grid_world.jsonl", help="output file")
+    parser.add_argument("--num-instances", "-n", type=int, default=10, help="number of instances to generate")
     parser.add_argument("--min-grid-size", "-i", type=int, default=5, help="minimum grid size")
     parser.add_argument("--max-grid-size", "-a", type=int, default=10, help="maximum grid size")
     args = parser.parse_args()
 
     all_trajectories = []
 
-    for _ in range(args.num_trajectories):
+    while len(all_trajectories) < args.num_instances:
+        print(f"Generating instance {len(all_trajectories) + 1} of {args.num_instances}\n\n")
         # Generate random grid size
         size = random.randint(args.min_grid_size, args.max_grid_size)
-        env = make_env(size=size)
+        env = make_grid_world(size=size)
         agent = create_agent(env)
 
         train_agent(env, agent, num_episodes=2000)
@@ -118,10 +133,11 @@ def main():
         if trajectory:
             all_trajectories.append(trajectory)
 
+    dataset = create_dataset(all_trajectories)
+
     # save trajectories as json file
-    with open("trajectories.json", "w") as f:
-        json.dump(all_trajectories, f)
-    print("Saved trajectories to trajectories.json")
+    dataset.to_json(args.output)
+    print(f"Saved {len(all_trajectories)} grid world instances to {args.output}")
 
 
 if __name__ == "__main__":

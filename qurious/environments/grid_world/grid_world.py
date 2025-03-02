@@ -1,6 +1,7 @@
 import numpy as np
 from qurious.mdp import MarkovDecisionProcess
-from .environment import Environment
+from ..environment import Environment
+import random
 
 
 class GridWorld(Environment):
@@ -45,6 +46,11 @@ class GridWorld(Environment):
         self.height = height
         self.start_pos = start_pos
         self.goal_pos = goal_pos if goal_pos is not None else [(height - 1, width - 1)]
+
+        # assert that goal_pos is an array of tuples
+        assert all(isinstance(goal, tuple) and len(goal) == 2 for goal in self.goal_pos), (
+            "goal_pos must be a list of tuples"
+        )
 
         if isinstance(obstacles, float):
             # Generate random obstacles
@@ -294,3 +300,38 @@ class GridWorld(Environment):
             The state space
         """
         return list(range(self.get_num_states()))
+
+
+def make_grid_world(size, **kwargs):
+    """
+    Create a grid world environment.
+
+    Args:
+        size (int): Size of the grid
+        **kwargs: Additional arguments for GridWorld
+            if no start_pos is provided, a random start position will be generated.
+            if no goal_pos is provided, a random goal position will be generated.
+            if no obstacles is provided, a random obstacle ratio will be generated.
+
+    Returns:
+        GridWorld: A grid world environment
+    """
+    # create random start position in grid
+    random_start_pos = (random.randint(0, size - 1), random.randint(0, size - 1))
+
+    # create random goal position in grid (different from start)
+    while True:
+        random_goal_pos = (random.randint(0, size - 1), random.randint(0, size - 1))
+        if random_goal_pos != random_start_pos:
+            break
+
+    # set kwargs defaults if not provided
+    kwargs.setdefault("start_pos", random_start_pos)
+    kwargs.setdefault("goal_pos", [random_goal_pos])
+    kwargs.setdefault("obstacles", 0.2)
+    kwargs.setdefault("terminal_reward", 0.0)
+    kwargs.setdefault("step_penalty", 0.1)
+
+    # Create a maze with a guaranteed path
+    env = GridWorld(width=size, height=size, **kwargs)
+    return env
