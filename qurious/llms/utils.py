@@ -5,6 +5,22 @@ import random
 from qurious.environments import GridWorld
 
 
+def auto_device():
+    """
+    Automatically selects the device for PyTorch based on availability of CUDA or MPS.
+    Returns:
+        torch.device: The selected device (either "cuda", "mps", or "cpu").
+    """
+    if torch.backends.mps.is_available():
+        device = torch.device("mps")
+    elif torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+    print(f"using device: {device}")
+    return device
+
+
 def make_env(size, **kwargs):
     # create random start position in grid
     random_start_pos = (random.randint(0, size - 1), random.randint(0, size - 1))
@@ -138,15 +154,30 @@ def load_maze_data(filename):
     return conversations
 
 
+def print_predictions(preds, examples, num_examples=10):
+    # Print some examples
+    for i in range(min(num_examples, len(preds))):
+        print(f"Example {i + 1}:")
+        print(f"  Maze:\n{examples[i]['env']}")
+        print(f"  Predicted: {preds[i]}")
+        print(f"  Actual: {examples[i]['actions']}")
+        print("")
+
+
 # Evaluate on test data using batching for speed
-def evaluate_model(model, tokenizer, test_data, batch_size=8):
+def evaluate_model(model, tokenizer, test_dataset, max_samples=None, batch_size=8):
     model.eval()
 
     predictions = []
 
+    # Sample test data
+    if max_samples is not None:
+        test_dataset = test_dataset.shuffle().select(range(max_samples))
+
+    print(f"\nEvaluating {len(test_dataset)} samples...")
     # Process test data in batches, use tqdm for progress bar
-    for i in tqdm(range(0, len(test_data), batch_size), desc="Evaluating"):
-        batch = test_data[i : i + batch_size]
+    for i in tqdm(range(0, len(test_dataset), batch_size), desc="Evaluating"):
+        batch = test_dataset.select(range(i, min(len(test_dataset), i + batch_size)))
         batch_prompts = []
 
         # Prepare batch inputs
@@ -186,5 +217,7 @@ def evaluate_model(model, tokenizer, test_data, batch_size=8):
             predictions.append(prediction)
 
     # Calculate and return accuracy
-    accuracy = calculate_accuracy(test_data, predictions)
+    accuracy = calculate_accuracy(test_dataset, predictions)
+    print_predictions(predictions, test_dataset)
+
     return accuracy, predictions

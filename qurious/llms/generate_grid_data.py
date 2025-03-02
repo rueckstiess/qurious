@@ -80,18 +80,17 @@ def collect_trajectory(env, agent):
         return None
     print(f"Actions: {actions}\n")
 
-    trajectory = [
-        {
-            "env": env_ascii,
-            "size": env.width,
-            "actions": actions,
-            "numeric_actions": numeric_actions,
-            "n_steps": len(numeric_actions),
-            "start_pos": env.start_pos,
-            "goal_pos": env.goal_pos[0],
-            "obstacles": env.obstacles,
-        }
-    ]
+    trajectory = {
+        "env": env_ascii,
+        "size": env.width,
+        "actions": actions,
+        "numeric_actions": numeric_actions,
+        "n_steps": len(numeric_actions),
+        "start_pos": env.start_pos,
+        "goal_pos": env.goal_pos[0],
+        "obstacles": env.obstacles,
+    }
+
     return trajectory
 
 
