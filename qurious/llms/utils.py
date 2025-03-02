@@ -88,7 +88,7 @@ def run_actions_in_env(example, numeric_actions):
             break
 
     # check if goal was reached
-    return env.position == env.goal_pos[0]
+    return env.position == tuple(env.goal_pos[0])
 
 
 def calculate_accuracy(test_data, predictions):
