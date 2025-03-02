@@ -15,14 +15,14 @@ class Config:
     }
 
     # SFT Settings
-    sft_epochs = 10  # SFT epochs for world model
+    sft_epochs = 3
     sft_batch_size = 4  # Batch size for SFT and eval
     sft_learning_rate = 1e-4  # SFT learning rate
 
     # Logging and Evaluation
     log_interval = 10  # Log every N episodes
-    eval_interval = 100  # Evaluate every N episodes
-    save_interval = 100  # Save models every N episodes
+    eval_interval = 1000  # Evaluate every N episodes
+    save_interval = 1000  # Save models every N episodes
     max_eval_samples = 100  # Maximum samples for evaluation
 
     # Paths

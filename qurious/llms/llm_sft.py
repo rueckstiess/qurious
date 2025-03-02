@@ -70,7 +70,7 @@ def main():
     model.to(auto_device())
 
     # Load train/eval data and split
-    dataset = load_dataset("json", data_files=str(Path(config.data_dir) / "grid_world_1k.jsonl"))
+    dataset = load_dataset("json", data_files=str(Path(config.data_dir) / "grid_world_10k.jsonl"))
     dataset = dataset["train"].train_test_split(test_size=0.1, seed=42)
 
     # print train and test sizes
