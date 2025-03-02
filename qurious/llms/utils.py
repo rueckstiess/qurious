@@ -72,7 +72,7 @@ def run_actions_in_env(example, numeric_actions):
             break
 
     # check if goal was reached
-    return env.index_to_state(env.position) == env.goal_pos[0]
+    return env.position == env.goal_pos[0]
 
 
 def calculate_accuracy(test_data, predictions):
@@ -125,7 +125,8 @@ def load_maze_data(filename):
                 },
                 {"role": "user", "content": example["env"]},
                 {"role": "assistant", "content": example["actions"]},
-            ]
+            ],
+            **example,
         }
         for example in maze_data
     ]

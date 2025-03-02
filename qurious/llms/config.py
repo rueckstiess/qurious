@@ -7,7 +7,7 @@ class Config:
     # Model Settings
     base_model = "meta-llama/Llama-3.2-3B-Instruct"  # Base LLM
     peft_config = {
-        "r": 16,
+        "r": 8,
         "lora_alpha": 16,
         "lora_dropout": 0.05,
         "target_modules": ["q_proj", "v_proj", "o_proj"],  # Reduced parameter count
@@ -16,7 +16,7 @@ class Config:
 
     # SFT Settings
     sft_epochs = 5  # SFT epochs for world model
-    sft_batch_size = 8  # Batch size for SFT
+    sft_batch_size = 8  # Batch size for SFT and eval
     sft_learning_rate = 3e-4  # SFT learning rate
 
     # Logging and Evaluation

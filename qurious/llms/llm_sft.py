@@ -9,7 +9,8 @@ from transformers import (
 )
 from peft import LoraConfig, get_peft_model, TaskType
 from sklearn.model_selection import train_test_split
-import wandb
+
+# import wandb
 from datetime import datetime
 
 from .utils import load_maze_data, evaluate_model
@@ -24,17 +25,17 @@ data_path = Path(config.data_dir)
 def main():
     # Initialize wandb
     run_name = f"grid-world-sft-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    wandb.init(
-        project="qurious",
-        name=run_name,
-        config={
-            "model": config.base_model,
-            "learning_rate": config.sft_learning_rate,
-            "epochs": config.sft_epochs,
-            "batch_size": config.sft_batch_size,
-            "lora_config": config.peft_config,
-        },
-    )
+    # wandb.init(
+    #     project="qurious",
+    #     name=run_name,
+    #     config={
+    #         "model": config.base_model,
+    #         "learning_rate": config.sft_learning_rate,
+    #         "epochs": config.sft_epochs,
+    #         "batch_size": config.sft_batch_size,
+    #         "lora_config": config.peft_config,
+    #     },
+    # )
 
     # Load model and tokenizer
     model_name = config.base_model
@@ -63,10 +64,10 @@ def main():
     model = get_peft_model(model, lora_config)
 
     # Load conversation data (replace with your actual data)
-    conversations = load_maze_data(data_path / "trajectories_100.json")
+    trajectories = load_maze_data(data_path / "trajectories_train.json")
 
     # Split data into training and evaluation sets
-    train_data, eval_data = train_test_split(conversations, test_size=0.2, random_state=42)
+    train_data, eval_data = train_test_split(trajectories, test_size=0.2, random_state=42)
 
     # Create HF datasets
     train_dataset = Dataset.from_list(train_data)
@@ -84,13 +85,13 @@ def main():
             padding=True,
         )
 
-    tokenized_train_dataset = train_dataset.map(tokenize_chat, batched=True, remove_columns=["messages"])
-    tokenized_eval_dataset = eval_dataset.map(tokenize_chat, batched=True, remove_columns=["messages"])
+    tokenized_train_dataset = train_dataset.map(tokenize_chat, batched=True, remove_columns=train_dataset.column_names)
+    tokenized_eval_dataset = eval_dataset.map(tokenize_chat, batched=True, remove_columns=eval_dataset.column_names)
 
     # print max length of tokenized sequences
     max_seq_length = max(len(x) for x in tokenized_train_dataset["input_ids"])
     print(f"Max length of tokenized sequences: {max_seq_length}")
-    wandb.log({"max_sequence_length": max_seq_length})
+    # wandb.log({"max_sequence_length": max_seq_length})
 
     # Data collator
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
@@ -117,7 +118,7 @@ def main():
         fp16=False,  # Mac Metal backend works best with defaults, not fp16
         optim="adamw_torch",  # Use standard PyTorch optimizer
         remove_unused_columns=False,
-        report_to="wandb",  # Enable wandb reporting
+        # report_to="wandb",  # Enable wandb reporting
     )
 
     # Create Trainer
@@ -130,18 +131,18 @@ def main():
     )
 
     # Prepare test data (for this example, using eval_dataset)
-    test_data = load_maze_data(data_path / "trajectories_100.json")
+    test_data = load_maze_data(data_path / "trajectories_test.json")
 
     # Evaluate before training
-    accuracy, preds, refs = evaluate_model(model, tokenizer, test_data, batch_size=16)
+    accuracy, preds = evaluate_model(model, tokenizer, test_data, batch_size=16)
     print(f"Test Accuracy before training: {accuracy:.4f}")
-    wandb.log({"accuracy_before_training": accuracy})
+    # wandb.log({"accuracy_before_training": accuracy})
 
     # Create a table to show example predictions before training
-    examples_table_before = wandb.Table(columns=["example_id", "maze", "prediction", "actual"])
-    for i in range(min(5, len(preds))):
-        examples_table_before.add_data(i, test_data[i]["messages"][1]["content"], preds[i], refs[i])
-    wandb.log({"examples_before_training": examples_table_before})
+    # examples_table_before = wandb.Table(columns=["example_id", "maze", "prediction", "actual"])
+    # for i in range(min(5, len(preds))):
+    #     examples_table_before.add_data(i, test_data[i]["env"], preds[i], test_data[i]["actions"])
+    # wandb.log({"examples_before_training": examples_table_before})
 
     # Train the model
     try:
@@ -155,26 +156,26 @@ def main():
     tokenizer.save_pretrained(output_dir)
 
     # Evaluate
-    accuracy, preds, refs = evaluate_model(model, tokenizer, test_data, batch_size=16)
+    accuracy, preds = evaluate_model(model, tokenizer, test_data, batch_size=16)
     print(f"Test Accuracy after training: {accuracy:.4f}")
-    wandb.log({"accuracy_after_training": accuracy})
+    # wandb.log({"accuracy_after_training": accuracy})
 
     # Create a table to show example predictions after training
-    examples_table_after = wandb.Table(columns=["example_id", "maze", "prediction", "actual"])
-    for i in range(min(10, len(preds))):
-        examples_table_after.add_data(i, test_data[i]["messages"][1]["content"], preds[i], refs[i])
-    wandb.log({"examples_after_training": examples_table_after})
+    # examples_table_after = wandb.Table(columns=["example_id", "maze", "prediction", "actual"])
+    # for i in range(min(10, len(preds))):
+    #     examples_table_after.add_data(i, test_data[i]["env"], preds[i], test_data[i]["actions"])
+    # wandb.log({"examples_after_training": examples_table_after})
 
     # Print some examples
     for i in range(min(10, len(preds))):
         print(f"Example {i + 1}:")
-        print(f"  Maze:\n{test_data[i]['messages'][1]['content']}")
+        print(f"  Maze:\n{test_data[i]['env']}")
         print(f"  Predicted: {preds[i]}")
-        print(f"  Actual: {refs[i]}")
+        print(f"  Actual: {test_data[i]['actions']}")
         print("")
 
     # Finish the wandb run
-    wandb.finish()
+    # wandb.finish()
 
 
 if __name__ == "__main__":
