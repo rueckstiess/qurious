@@ -10,9 +10,6 @@ from transformers import (
 from peft import LoraConfig, get_peft_model, TaskType
 from sklearn.model_selection import train_test_split
 
-# import wandb
-from datetime import datetime
-
 from .utils import load_maze_data, evaluate_model
 from .config import Config
 
@@ -22,21 +19,17 @@ config = Config()
 data_path = Path(config.data_dir)
 
 
-def main():
-    # Initialize wandb
-    run_name = f"grid-world-sft-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    # wandb.init(
-    #     project="qurious",
-    #     name=run_name,
-    #     config={
-    #         "model": config.base_model,
-    #         "learning_rate": config.sft_learning_rate,
-    #         "epochs": config.sft_epochs,
-    #         "batch_size": config.sft_batch_size,
-    #         "lora_config": config.peft_config,
-    #     },
-    # )
+def print_predictions(preds, examples):
+    # Print some examples
+    for i in range(min(10, len(preds))):
+        print(f"Example {i + 1}:")
+        print(f"  Maze:\n{examples[i]['env']}")
+        print(f"  Predicted: {preds[i]}")
+        print(f"  Actual: {examples[i]['actions']}")
+        print("")
 
+
+def main():
     # Load model and tokenizer
     model_name = config.base_model
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -91,7 +84,6 @@ def main():
     # print max length of tokenized sequences
     max_seq_length = max(len(x) for x in tokenized_train_dataset["input_ids"])
     print(f"Max length of tokenized sequences: {max_seq_length}")
-    # wandb.log({"max_sequence_length": max_seq_length})
 
     # Data collator
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
@@ -118,7 +110,7 @@ def main():
         fp16=False,  # Mac Metal backend works best with defaults, not fp16
         optim="adamw_torch",  # Use standard PyTorch optimizer
         remove_unused_columns=False,
-        # report_to="wandb",  # Enable wandb reporting
+        report_to="none",  # Disable reporting to W&B
     )
 
     # Create Trainer
@@ -134,15 +126,9 @@ def main():
     test_data = load_maze_data(data_path / "trajectories_test.json")
 
     # Evaluate before training
-    accuracy, preds = evaluate_model(model, tokenizer, test_data, batch_size=16)
+    accuracy, preds = evaluate_model(model, tokenizer, test_data, batch_size=config.sft_batch_size)
     print(f"Test Accuracy before training: {accuracy:.4f}")
-    # wandb.log({"accuracy_before_training": accuracy})
-
-    # Create a table to show example predictions before training
-    # examples_table_before = wandb.Table(columns=["example_id", "maze", "prediction", "actual"])
-    # for i in range(min(5, len(preds))):
-    #     examples_table_before.add_data(i, test_data[i]["env"], preds[i], test_data[i]["actions"])
-    # wandb.log({"examples_before_training": examples_table_before})
+    print_predictions(preds, test_data)
 
     # Train the model
     try:
@@ -151,31 +137,14 @@ def main():
         print("Training interrupted. Saving current model state...")
 
     # Save the model
-    output_dir = f"./grid_world_lora_adapter-{run_name}"
+    output_dir = "./grid_world_lora_adapter"
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
 
     # Evaluate
-    accuracy, preds = evaluate_model(model, tokenizer, test_data, batch_size=16)
+    accuracy, preds = evaluate_model(model, tokenizer, test_data, batch_size=config.sft_batch_size)
     print(f"Test Accuracy after training: {accuracy:.4f}")
-    # wandb.log({"accuracy_after_training": accuracy})
-
-    # Create a table to show example predictions after training
-    # examples_table_after = wandb.Table(columns=["example_id", "maze", "prediction", "actual"])
-    # for i in range(min(10, len(preds))):
-    #     examples_table_after.add_data(i, test_data[i]["env"], preds[i], test_data[i]["actions"])
-    # wandb.log({"examples_after_training": examples_table_after})
-
-    # Print some examples
-    for i in range(min(10, len(preds))):
-        print(f"Example {i + 1}:")
-        print(f"  Maze:\n{test_data[i]['env']}")
-        print(f"  Predicted: {preds[i]}")
-        print(f"  Actual: {test_data[i]['actions']}")
-        print("")
-
-    # Finish the wandb run
-    # wandb.finish()
+    print_predictions(preds, test_data)
 
 
 if __name__ == "__main__":

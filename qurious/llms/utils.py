@@ -119,11 +119,15 @@ def load_maze_data(filename):
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a navigation assistant. Given a maze representation, output the actions "
-                    "to move the agent (A) to the goal (G), avoiding obstacles (#). Output actions as a "
-                    "comma-separated list of up, down, left, right. Do not include any other text.",
+                    "content": "You are a navigation assistant.",
                 },
-                {"role": "user", "content": example["env"]},
+                {
+                    "role": "user",
+                    "content": f"Given the maze representation below, output the {example['n_steps']} steps "
+                    "to move the agent (A) to the goal (G), avoiding obstacles (#). Output steps as a "
+                    "comma-separated list of up, down, left, right. Do not include any other text.\n\n"
+                    + example["env"],
+                },
                 {"role": "assistant", "content": example["actions"]},
             ],
             **example,
