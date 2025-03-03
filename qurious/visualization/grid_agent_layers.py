@@ -1,7 +1,8 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import patches
 from typing import Any, Optional, Tuple
+
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib import patches
 
 from qurious.visualization.base import Layer
 

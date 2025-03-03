@@ -7,7 +7,7 @@ resources:
   # Optional; if left out, automatically pick the cheapest cloud.
   cloud: lambda
   accelerators: A100:1
-  region: asia-south-1
+  region: us-east-1
 
 # Working directory (optional) containing the project codebase.
 # Its contents are synced to ~/sky_workdir/ on the cluster.
@@ -16,9 +16,11 @@ workdir: .
 # Environment variables
 envs:
   SKY_REMOTE: true
+  HF_TOKEN: ${HF_TOKEN}
 
 # Invoked under the workdir (i.e., can use its files).
 setup: |
   pip install -r requirements.txt
   pip install -e ".[dev]"
   pip install torch==2.2.1+cu118 -f https://download.pytorch.org/whl/torch_stable.html
+  huggingface-cli login --token ${HF_TOKEN}

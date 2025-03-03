@@ -1,10 +1,12 @@
 import unittest
+
 import numpy as np
 from numpy.testing import assert_array_equal
 
+from qurious.rl.mdp import MarkovDecisionProcess
+
 # Import the MRP and MDP classes
-from qurious.mrp import MarkovRewardProcess
-from qurious.mdp import MarkovDecisionProcess
+from qurious.rl.mrp import MarkovRewardProcess
 
 
 class TestMarkovRewardProcess(unittest.TestCase):

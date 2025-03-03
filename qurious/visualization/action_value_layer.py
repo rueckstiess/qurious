@@ -1,7 +1,8 @@
-import numpy as np
-import matplotlib.pyplot as plt
+from typing import Any, Optional
+
 import matplotlib.colors as mcolors
-from typing import Any, Dict, Optional, List, Tuple, Union
+import matplotlib.pyplot as plt
+import numpy as np
 
 from qurious.visualization.base import Layer
 

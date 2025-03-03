@@ -1,10 +1,8 @@
 import unittest
-import numpy as np
-from numpy.testing import assert_array_equal, assert_array_almost_equal
 
-from qurious.agents import TabularAgent, ValueBasedAgent, QLearningAgent, SarsaAgent, ExpectedSarsaAgent
-from qurious.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
-from qurious.value_fns import TabularActionValueFunction
+from qurious.rl.agents import QLearningAgent, TabularAgent, ValueBasedAgent
+from qurious.rl.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
+from qurious.rl.value_fns import TabularActionValueFunction
 
 
 class TestTabularAgent(unittest.TestCase):
@@ -77,7 +75,7 @@ class TestValueBasedAgent(unittest.TestCase):
         transition = (0, 0, 1.0, 1, False)
 
         # Before learning
-        initial_value = self.value_function.estimate(0, 0)
+        self.value_function.estimate(0, 0)
 
         # Learn from transition
         self.agent.learn(transition)
@@ -136,7 +134,7 @@ class TestQLearningAgent(unittest.TestCase):
         transition = (0, 0, 1.0, 1, False)
 
         # Before learning
-        initial_value = self.value_function.estimate(0, 0)
+        self.value_function.estimate(0, 0)
 
         # Learn from transition
         self.agent.learn(transition)

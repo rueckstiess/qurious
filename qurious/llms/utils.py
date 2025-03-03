@@ -1,8 +1,63 @@
 import torch
+from datasets import Dataset, DatasetDict
+from datasets import load_dataset as hf_load_dataset
+from pymongo import MongoClient
 from tqdm import tqdm
-import json
-import random
-from qurious.environments import GridWorld
+
+from qurious.rl.environments.grid_world import make_grid_world
+
+
+def load_dataset(*args, **kwargs) -> Dataset:
+    """
+    Wrapper for Hugging Face datasets.load_dataset() that can load data from MongoDB as well.
+    If type is "mongodb", it loads data from MongoDB, otherwise it passes all arguments
+    to load_dataset function from Hugging Face datasets.
+
+    Args:
+        type (str): Type of data source, "mongodb" or any of the types supported by Hugging Face datasets.
+        **kwargs: Additional arguments for loading data. For MongoDB, it requires "uri", "db", and "collection",
+        and optionally takes "filter", "sort", "limit", "skip", and "projection".
+
+    Returns:
+        Dataset: Loaded dataset.
+    """
+    path = args[0]
+
+    if path == "mongodb":
+        # Extract MongoDB connection parameters
+        uri = kwargs.pop("uri", "mongodb://localhost:27017/")
+        db_name = kwargs.pop("db")
+        collection_name = kwargs.pop("collection")
+
+        # Extract optional parameters with defaults
+        filter_dict = kwargs.pop("filter", {})
+        sort = kwargs.pop("sort", None)
+        limit = kwargs.pop("limit", None)
+        skip = kwargs.pop("skip", None)
+        projection = kwargs.pop("projection", {"_id": 0})
+
+        # Connect to MongoDB
+        client = MongoClient(uri)
+        db = client[db_name]
+        coll = db[collection_name]
+
+        # Build the query
+        cursor = coll.find(filter_dict, projection)
+        if sort:
+            cursor = cursor.sort(sort)
+        if skip:
+            cursor = cursor.skip(skip)
+        if limit:
+            cursor = cursor.limit(limit)
+
+        # Convert to list and create Dataset
+        documents = list(cursor)
+        client.close()
+
+        return DatasetDict({"train": Dataset.from_list(documents)})
+    else:
+        # Use HuggingFace's load_dataset for other types
+        return hf_load_dataset(*args, **kwargs)
 
 
 def auto_device():
@@ -19,30 +74,6 @@ def auto_device():
         device = torch.device("cpu")
     print(f"using device: {device}")
     return device
-
-
-def make_env(size, **kwargs):
-    # create random start position in grid
-    random_start_pos = (random.randint(0, size - 1), random.randint(0, size - 1))
-
-    # create random goal position in grid (different from start)
-    while True:
-        random_goal_pos = (random.randint(0, size - 1), random.randint(0, size - 1))
-        if random_goal_pos != random_start_pos:
-            break
-
-    # Create a maze with a guaranteed path
-    env = GridWorld(
-        width=size,
-        height=size,
-        start_pos=kwargs.get("start_pos", random_start_pos),
-        goal_pos=[kwargs.get("goal_pos", random_goal_pos)],
-        obstacles=kwargs.get("obstacles", 0.2),
-        terminal_reward=0.0,
-        step_penalty=0.1,
-        max_steps=100,
-    )
-    return env
 
 
 def extract_actions_from_responses(response):
@@ -78,8 +109,11 @@ def run_actions_in_env(example, numeric_actions):
         True if goal was reached, False otherwise
     """
     # make environment
-    env = make_env(
-        example["size"], start_pos=example["start_pos"], goal_pos=example["goal_pos"], obstacles=example["obstacles"]
+    env = make_grid_world(
+        example["size"],
+        start_pos=example["start_pos"],
+        goal_pos=[tuple(example["goal_pos"])],
+        obstacles=example["obstacles"],
     )
 
     for a in numeric_actions:
@@ -116,42 +150,6 @@ def calculate_accuracy(test_data, predictions):
 
     accuracy = correct / len(test_data)
     return accuracy
-
-
-def load_maze_data(filename):
-    """
-    Load maze conversation data.
-
-    Returns:
-        List of dicts with 'system', 'user', 'assistant
-    """
-
-    # load json into list of dicts
-    with open(filename, "r") as f:
-        maze_data = json.load(f)
-
-    conversations = [
-        {
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are a navigation assistant.",
-                },
-                {
-                    "role": "user",
-                    "content": f"Given the maze representation below, output the {example['n_steps']} steps "
-                    "to move the agent (A) to the goal (G), avoiding obstacles (#). Output steps as a "
-                    "comma-separated list of up, down, left, right. Do not include any other text.\n\n"
-                    + example["env"],
-                },
-                {"role": "assistant", "content": example["actions"]},
-            ],
-            **example,
-        }
-        for example in maze_data
-    ]
-
-    return conversations
 
 
 def print_predictions(preds, examples, num_examples=10):

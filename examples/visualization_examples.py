@@ -1,22 +1,19 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
-from qurious.environments import GridWorld
-from qurious.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy, SoftmaxPolicy
-from qurious.value_fns import TabularStateValueFunction, TabularActionValueFunction
-from qurious.agents import QLearningAgent
-from qurious.experience import Transition
-
+from qurious.rl.environments import GridWorld
+from qurious.rl.experience import Transition
+from qurious.rl.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy, SoftmaxPolicy
+from qurious.rl.value_fns import TabularActionValueFunction, TabularStateValueFunction
 from qurious.visualization import (
-    GridWorldVisualizer,
-    GridLayer,
     AgentLayer,
-    PolicyLayer,
-    StateValueLayer,
-    ActionValueLayer,
-    TrajectoryLayer,
     EligibilityTraceLayer,
     EpisodeAnimator,
+    GridLayer,
+    GridWorldVisualizer,
+    PolicyLayer,
+    StateValueLayer,
+    TrajectoryLayer,
     create_gridworld_visualizer,
 )
 
@@ -245,7 +242,7 @@ def example_trajectory_visualization():
 
     # Create an animation
     animator = EpisodeAnimator(env, vis, transitions, interval=500)
-    anim = animator.animate(save_path="grid_world_animation.gif", fps=2, dpi=100)
+    animator.animate(save_path="grid_world_animation.gif", fps=2, dpi=100)
     print("Animation saved to 'grid_world_animation.gif'")
 
 
@@ -264,7 +261,7 @@ def example_eligibility_trace():
 
     # Create a state value function
     n_states = env.get_num_states()
-    v_func = TabularStateValueFunction(n_states, initial_value=0.0)
+    TabularStateValueFunction(n_states, initial_value=0.0)
 
     # Create mock eligibility traces
     traces = np.zeros(n_states)

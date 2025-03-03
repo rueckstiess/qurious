@@ -1,12 +1,10 @@
-import numpy as np
+from typing import Any
+
 import matplotlib.pyplot as plt
-from matplotlib.path import Path
-import matplotlib.patches as patches
-from typing import Any, Dict, Optional, List, Tuple, Union
+import numpy as np
 
 from qurious.visualization.base import Layer
 from qurious.visualization.grid_agent_layers import AgentLayer
-from qurious.experience import Transition
 
 
 class TrajectoryLayer(Layer):
@@ -367,7 +365,7 @@ class EpisodeAnimator:
         # If in a notebook environment and display is requested, display it
         if display_in_notebook:
             try:
-                from IPython.display import display, HTML
+                from IPython.display import HTML
 
                 # Create HTML animation
                 html = anim.to_jshtml()

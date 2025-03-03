@@ -1,9 +1,10 @@
-import numpy as np
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Optional, Any
-import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
+from typing import Any, List, Optional, Tuple
+
 import matplotlib.patches as patches
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import ListedColormap
 
 
 class Layer(ABC):

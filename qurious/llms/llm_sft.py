@@ -1,23 +1,18 @@
 import torch
-from datasets import Dataset
+from peft import LoraConfig, TaskType, get_peft_model
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    TrainingArguments,
-    Trainer,
     DataCollatorForLanguageModeling,
+    Trainer,
     TrainerCallback,
+    TrainingArguments,
 )
-from peft import LoraConfig, get_peft_model, TaskType
-from sklearn.model_selection import train_test_split
 
-from .utils import load_maze_data, evaluate_model, auto_device
 from .config import Config
-
-from pathlib import Path
+from .utils import auto_device, evaluate_model, load_dataset
 
 config = Config()
-data_path = Path(config.data_dir)
 
 
 class CustomEvaluationCallback(TrainerCallback):
@@ -71,19 +66,13 @@ def main():
     model = get_peft_model(model, lora_config)
     model.to(auto_device())
 
-    # Load conversation data (replace with your actual data)
-    trajectories = load_maze_data(data_path / "trajectories_train.json")
+    # Load train/eval data and split
+    dataset = load_dataset("mongodb", db="gridworld", collection="gridworld_10k", filter={"size": {"$lte": 6}})
+    dataset = dataset["train"].train_test_split(test_size=0.05, seed=42)
+    print(dataset)
 
-    # Split data into training and evaluation sets
-    train_data, eval_data = train_test_split(trajectories, test_size=0.1, random_state=42)
-
-    # Prepare test data (for this example, using eval_dataset)
-    test_data = load_maze_data(data_path / "trajectories_test.json")
-
-    # Create HF datasets
-    train_dataset = Dataset.from_list(train_data)
-    eval_dataset = Dataset.from_list(eval_data)
-    test_dataset = Dataset.from_list(test_data)
+    # print train and test sizes
+    print(f"Train size: {len(dataset['train'])}, Test size: {len(dataset['test'])}")
 
     def tokenize_chat(messages):
         return tokenizer.apply_chat_template(
@@ -92,16 +81,15 @@ def main():
             return_dict=True,
             return_tensors="pt",
             add_generation_prompt=False,
-            max_length=256,
+            max_length=300,
             truncation=True,
             padding=True,
         )
 
-    tokenized_train_dataset = train_dataset.map(tokenize_chat, batched=True, remove_columns=train_dataset.column_names)
-    tokenized_eval_dataset = eval_dataset.map(tokenize_chat, batched=True, remove_columns=eval_dataset.column_names)
+    tokenized_dataset = dataset.map(tokenize_chat, batched=True, remove_columns=dataset["train"].column_names)
 
     # print max length of tokenized sequences
-    max_seq_length = max(len(x) for x in tokenized_train_dataset["input_ids"])
+    max_seq_length = max(len(x) for x in tokenized_dataset["train"]["input_ids"])
     print(f"Max length of tokenized sequences: {max_seq_length}")
 
     # Data collator
@@ -109,7 +97,7 @@ def main():
 
     # mid-training evaluation on eval dataset
     custom_callback = CustomEvaluationCallback(
-        model=model, tokenizer=tokenizer, eval_dataset=eval_dataset, batch_size=config.sft_batch_size
+        model=model, tokenizer=tokenizer, eval_dataset=dataset["test"], batch_size=config.sft_batch_size
     )
 
     # Set up training arguments - optimized for Mac
@@ -140,14 +128,14 @@ def main():
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=tokenized_train_dataset,
-        eval_dataset=tokenized_eval_dataset,
+        train_dataset=tokenized_dataset["train"],
+        eval_dataset=tokenized_dataset["test"],
         data_collator=data_collator,
         callbacks=[custom_callback],
     )
 
     # Evaluate before training
-    accuracy, preds = evaluate_model(model, tokenizer, test_dataset, batch_size=config.sft_batch_size)
+    accuracy, preds = evaluate_model(model, tokenizer, dataset["test"], batch_size=config.sft_batch_size)
     print(f"Test Accuracy before training: {accuracy:.4f}")
 
     # Train the model
@@ -162,7 +150,7 @@ def main():
     tokenizer.save_pretrained(output_dir)
 
     # Evaluate
-    accuracy, preds = evaluate_model(model, tokenizer, test_dataset, batch_size=config.sft_batch_size)
+    accuracy, preds = evaluate_model(model, tokenizer, dataset["test"], batch_size=config.sft_batch_size)
     print(f"Test Accuracy after training: {accuracy:.4f}")
 
 

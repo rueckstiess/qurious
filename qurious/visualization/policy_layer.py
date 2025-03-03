@@ -1,6 +1,7 @@
-import numpy as np
+from typing import Any
+
 import matplotlib.pyplot as plt
-from typing import Any, Dict, Optional, List, Tuple, Union
+import numpy as np
 
 from qurious.visualization.base import Layer
 
