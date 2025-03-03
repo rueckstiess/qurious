@@ -5,7 +5,7 @@ Configuration file for the LLM SQL Explorer project.
 
 class Config:
     # Model Settings
-    base_model = "meta-llama/Llama-3.1-8B-Instruct"  # Base LLM
+    base_model = "meta-llama/Llama-3.2-3B-Instruct"  # Base LLM
     peft_config = {
         "r": 8,
         "lora_alpha": 16,

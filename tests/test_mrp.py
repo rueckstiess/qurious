@@ -3,8 +3,8 @@ import numpy as np
 from numpy.testing import assert_array_equal
 
 # Import the MRP and MDP classes
-from qurious.mrp import MarkovRewardProcess
-from qurious.mdp import MarkovDecisionProcess
+from qurious.rl.mrp import MarkovRewardProcess
+from qurious.rl.mdp import MarkovDecisionProcess
 
 
 class TestMarkovRewardProcess(unittest.TestCase):

@@ -1,5 +1,4 @@
 import torch
-from datasets import load_dataset
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -10,10 +9,8 @@ from transformers import (
 )
 from peft import LoraConfig, get_peft_model, TaskType
 
-from .utils import evaluate_model, auto_device
+from .utils import evaluate_model, auto_device, load_dataset
 from .config import Config
-
-from pathlib import Path
 
 config = Config()
 
@@ -70,8 +67,9 @@ def main():
     model.to(auto_device())
 
     # Load train/eval data and split
-    dataset = load_dataset("json", data_files=str(Path(config.data_dir) / "grid_world_10k.jsonl"))
-    dataset = dataset["train"].train_test_split(test_size=0.1, seed=42)
+    dataset = load_dataset("mongodb", db="gridworld", collection="gridworld_10k", filter={"size": {"$lte": 6}})
+    dataset = dataset["train"].train_test_split(test_size=0.05, seed=42)
+    print(dataset)
 
     # print train and test sizes
     print(f"Train size: {len(dataset['train'])}, Test size: {len(dataset['test'])}")

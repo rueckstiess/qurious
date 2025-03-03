@@ -1,5 +1,5 @@
 import numpy as np
-from qurious.mdp import MarkovDecisionProcess
+from qurious.rl.mdp import MarkovDecisionProcess
 from ..environment import Environment
 import random
 

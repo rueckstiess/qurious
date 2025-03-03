@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-from typing import Any, Dict, Optional, List, Tuple, Union
+from typing import Any, Optional
 
 from qurious.visualization.base import Layer
 

@@ -2,11 +2,11 @@ import random
 import argparse
 from datasets import Dataset
 
-from qurious.agents import SarsaAgent
-from qurious.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
-from qurious.value_fns import TabularActionValueFunction
-from qurious.utils import train_agent, run_agent
-from qurious.environments.grid_world import make_grid_world
+from qurious.rl.agents import SarsaAgent
+from qurious.rl.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
+from qurious.rl.value_fns import TabularActionValueFunction
+from qurious.rl.utils import train_agent, run_agent
+from qurious.rl.environments.grid_world import make_grid_world
 from qurious.visualization import GridWorldVisualizer, AgentLayer, GridLayer
 
 

@@ -5,7 +5,7 @@ import os
 import tempfile
 
 # Import the policy classes
-from qurious.policy import (
+from qurious.rl.policy import (
     DeterministicTabularPolicy,
     EpsilonGreedyPolicy,
     SoftmaxPolicy,

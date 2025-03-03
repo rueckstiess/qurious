@@ -36,7 +36,8 @@ exclude = ["tests*", "notebooks*", "examples*"]
 dev = [
     "pytest>=7.0.0",
     "ipython>=8.0.0",
-    "skypilot[aws,gcp,lambda]==0.8.0"
+    "skypilot[aws,gcp,lambda]==0.8.0",
+    "pymongo>=4.8.0"
 ]
 
 [project.urls]

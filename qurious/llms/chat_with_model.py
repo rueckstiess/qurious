@@ -3,7 +3,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 import argparse
 
-from config import Config
+from .config import Config
 
 config = Config()
 
@@ -48,11 +48,11 @@ def main():
             break
 
         # unescape \n in user_input
-        user_input = user_input.replace("\\n", "\n")
+        # user_input = user_input.replace("\\n", "\n")
 
         # Add user message to conversation
         messages.append({"role": "user", "content": user_input})
-        print(messages)
+        print(f"\nUser said: {user_input}")
 
         # Format conversation using the chat template
         prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)

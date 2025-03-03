@@ -1,12 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.path import Path
-import matplotlib.patches as patches
-from typing import Any, Dict, Optional, List, Tuple, Union
+from typing import Any
 
 from qurious.visualization.base import Layer
 from qurious.visualization.grid_agent_layers import AgentLayer
-from qurious.experience import Transition
 
 
 class TrajectoryLayer(Layer):
