@@ -1,6 +1,7 @@
-import numpy as np
-import matplotlib.pyplot as plt
 from typing import Any
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 from qurious.visualization.base import Layer
 from qurious.visualization.grid_agent_layers import AgentLayer

@@ -1,6 +1,8 @@
-import pytest
-from qurious.llms.utils import extract_actions_from_responses
 import unittest
+
+import pytest
+
+from qurious.llms.utils import extract_actions_from_responses
 
 
 class TestExtractActionsFromResponses:

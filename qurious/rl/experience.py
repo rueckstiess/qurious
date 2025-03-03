@@ -1,7 +1,8 @@
-import numpy as np
 from collections import deque
 from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple, Iterator
+from typing import Any, Iterator, List, Optional, Tuple
+
+import numpy as np
 
 
 @dataclass

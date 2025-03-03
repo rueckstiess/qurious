@@ -1,7 +1,10 @@
-import numpy as np
-from qurious.rl.mdp import MarkovDecisionProcess
-from ..environment import Environment
 import random
+
+import numpy as np
+
+from qurious.rl.mdp import MarkovDecisionProcess
+
+from ..environment import Environment
 
 
 class GridWorld(Environment):

@@ -1,4 +1,5 @@
 import unittest
+
 from qurious.rl.environments.grid_world import GridWorld, make_grid_world
 
 

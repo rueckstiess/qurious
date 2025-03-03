@@ -1,7 +1,8 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 from typing import Any, Optional
+
+import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
+import numpy as np
 
 from qurious.visualization.base import Layer
 

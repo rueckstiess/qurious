@@ -1,8 +1,9 @@
-import unittest
-import numpy as np
-from numpy.testing import assert_array_equal, assert_array_almost_equal
 import os
 import tempfile
+import unittest
+
+import numpy as np
+from numpy.testing import assert_array_almost_equal, assert_array_equal
 
 # Import the policy classes
 from qurious.rl.policy import (

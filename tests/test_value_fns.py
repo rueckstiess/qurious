@@ -1,13 +1,14 @@
-import unittest
-import numpy as np
-from numpy.testing import assert_array_equal
 import os
 import tempfile
+import unittest
+
+import numpy as np
+from numpy.testing import assert_array_equal
 
 # Import the value function classes
 from qurious.rl.value_fns import (
-    TabularStateValueFunction,
     TabularActionValueFunction,
+    TabularStateValueFunction,
 )
 
 

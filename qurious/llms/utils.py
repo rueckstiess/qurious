@@ -1,8 +1,10 @@
 import torch
-from tqdm import tqdm
-from qurious.rl.environments.grid_world import make_grid_world
-from datasets import Dataset, DatasetDict, load_dataset as hf_load_dataset
+from datasets import Dataset, DatasetDict
+from datasets import load_dataset as hf_load_dataset
 from pymongo import MongoClient
+from tqdm import tqdm
+
+from qurious.rl.environments.grid_world import make_grid_world
 
 
 def load_dataset(*args, **kwargs) -> Dataset:

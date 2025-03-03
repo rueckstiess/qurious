@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
-from ..experience import Experience, Transition
 from typing import Optional, Tuple
+
+from ..experience import Experience, Transition
 
 
 class Agent(ABC):

@@ -1,16 +1,16 @@
 import torch
+from peft import LoraConfig, TaskType, get_peft_model
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    TrainingArguments,
-    Trainer,
     DataCollatorForLanguageModeling,
+    Trainer,
     TrainerCallback,
+    TrainingArguments,
 )
-from peft import LoraConfig, get_peft_model, TaskType
 
-from .utils import evaluate_model, auto_device, load_dataset
 from .config import Config
+from .utils import auto_device, evaluate_model, load_dataset
 
 config = Config()
 

@@ -1,14 +1,14 @@
-import random
 import argparse
+import random
+
 from datasets import Dataset
 
 from qurious.rl.agents import SarsaAgent
-from qurious.rl.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
-from qurious.rl.value_fns import TabularActionValueFunction
-from qurious.rl.utils import train_agent, run_agent
 from qurious.rl.environments.grid_world import make_grid_world
-from qurious.visualization import GridWorldVisualizer, AgentLayer, GridLayer
-
+from qurious.rl.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
+from qurious.rl.utils import run_agent, train_agent
+from qurious.rl.value_fns import TabularActionValueFunction
+from qurious.visualization import AgentLayer, GridLayer, GridWorldVisualizer
 
 GRIDWORLD_SYSTEM_PROMPT = """You are an expert in navigating grid world environments. You will be given a \
 grid world environment and you need to find the optimal path from the agent position to the goal position. \
