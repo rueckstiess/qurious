@@ -364,7 +364,7 @@ class EpisodeAnimator:
         # If in a notebook environment and display is requested, display it
         if display_in_notebook:
             try:
-                from IPython.display import display, HTML
+                from IPython.display import HTML
 
                 # Create HTML animation
                 html = anim.to_jshtml()

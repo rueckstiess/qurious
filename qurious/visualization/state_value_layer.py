@@ -99,7 +99,7 @@ class StateValueLayer(Layer):
                         value = self.value_function.estimate(state)
 
                     value_grid[row, col] = value
-                except Exception as e:
+                except Exception as _:
                     # If there's an error estimating value, mask this cell
                     masked_grid.mask[row, col] = True
 

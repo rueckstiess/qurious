@@ -1,6 +1,6 @@
 import unittest
 
-from qurious.rl.agents import TabularAgent, ValueBasedAgent, QLearningAgent, SarsaAgent, ExpectedSarsaAgent
+from qurious.rl.agents import TabularAgent, ValueBasedAgent, QLearningAgent
 from qurious.rl.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
 from qurious.rl.value_fns import TabularActionValueFunction
 
@@ -75,7 +75,7 @@ class TestValueBasedAgent(unittest.TestCase):
         transition = (0, 0, 1.0, 1, False)
 
         # Before learning
-        initial_value = self.value_function.estimate(0, 0)
+        self.value_function.estimate(0, 0)
 
         # Learn from transition
         self.agent.learn(transition)
@@ -134,7 +134,7 @@ class TestQLearningAgent(unittest.TestCase):
         transition = (0, 0, 1.0, 1, False)
 
         # Before learning
-        initial_value = self.value_function.estimate(0, 0)
+        self.value_function.estimate(0, 0)
 
         # Learn from transition
         self.agent.learn(transition)
