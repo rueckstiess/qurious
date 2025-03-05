@@ -169,12 +169,12 @@ def evaluate_model(model, tokenizer, test_dataset, max_samples=None, batch_size=
     predictions = []
 
     # Sample test data
-    if max_samples is not None:
+    if max_samples is not None and len(test_dataset) > max_samples:
         test_dataset = test_dataset.shuffle().select(range(max_samples))
 
-    print(f"\nEvaluating {len(test_dataset)} samples...")
+    print(f"\nEvaluating {len(test_dataset)} rollouts...")
     # Process test data in batches, use tqdm for progress bar
-    for i in tqdm(range(0, len(test_dataset), batch_size), desc="Evaluating"):
+    for i in tqdm(range(0, len(test_dataset), batch_size)):
         batch = test_dataset.select(range(i, min(len(test_dataset), i + batch_size)))
         batch_prompts = []
 
