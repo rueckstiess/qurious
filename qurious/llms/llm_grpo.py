@@ -32,12 +32,10 @@ class CustomEvaluationCallback(TrainerCallback):
 
     def on_evaluate(self, args, state, control, metrics=None, **kwargs):
         # This runs after the trainer's built-in evaluation
-        accuracy, preds = evaluate_model(self.model, self.tokenizer, self.test_data, batch_size=self.batch_size)
-        print(f"\nEvaluation - Step {state.global_step}, Accuracy: {accuracy:.4f}")
-
-        # Add custom metrics to logs (will be combined with Trainer's metrics)
-        if metrics is not None:
-            metrics["accuracy"] = accuracy
+        accuracy, distance, preds = evaluate_model(
+            self.model, self.tokenizer, self.test_data, batch_size=self.batch_size
+        )
+        print(f"\nEvaluation - Step {state.global_step}, Accuracy: {accuracy:.4f}, Avg Distance: {distance:.4f}")
 
         # Return the control object
         return control
@@ -99,31 +97,38 @@ def main():
     def reward_goal_reached(completions, **kwargs):
         rewards = []
         for i, completion in enumerate(completions):
+            reward = 0.0
             _, numeric_actions = extract_actions_from_responses(completion)
             example = {k: v[i] for k, v in kwargs.items()}
-            solved = run_actions_in_env(example, numeric_actions)
-            rewards.append(1.0 if solved else 0.0)
-        return rewards
+            solved, distance = run_actions_in_env(example, numeric_actions)
 
-    def reward_num_steps(completions, **kwargs):
-        rewards = []
-        for i, completion in enumerate(completions):
-            _, numeric_actions = extract_actions_from_responses(completion)
-            example = {k: v[i] for k, v in kwargs.items()}
+            if solved:
+                reward += 1
 
-            target_steps = example["n_steps"]
-            actual_steps = len(numeric_actions)
-
-            # Calculate difference as percentage of target steps
-            if target_steps > 0:
-                # Normalize difference to be between 0 and 1
-                normalized_diff = min(abs(target_steps - actual_steps) / target_steps, 1.0)
-                rewards.append(-normalized_diff)  # Make negative for penalty
-            else:
-                # Handle edge case where target_steps is 0
-                rewards.append(-1.0 if actual_steps > 0 else 0.0)
+            reward -= distance / 10.0  # Normalize distance to be between 0 and 1
+            rewards.append(reward)
 
         return rewards
+
+    # def reward_num_steps(completions, **kwargs):
+    #     rewards = []
+    #     for i, completion in enumerate(completions):
+    #         _, numeric_actions = extract_actions_from_responses(completion)
+    #         example = {k: v[i] for k, v in kwargs.items()}
+
+    #         target_steps = example["n_steps"]
+    #         actual_steps = len(numeric_actions)
+
+    #         # Calculate difference as percentage of target steps
+    #         if target_steps > 0:
+    #             # Normalize difference to be between 0 and 1
+    #             normalized_diff = min(abs(target_steps - actual_steps) / target_steps, 1.0)
+    #             rewards.append(-normalized_diff)  # Make negative for penalty
+    #         else:
+    #             # Handle edge case where target_steps is 0
+    #             rewards.append(-1.0 if actual_steps > 0 else 0.0)
+
+    #     return rewards
 
     def reward_illegal_actions(completions, **kwargs):
         rewards = []
@@ -155,13 +160,13 @@ def main():
         label_names=[],
         eval_strategy="steps",
         eval_steps=50,
-        reward_weights=[1.0, 0.3, 0.5],
+        reward_weights=[5.0, 1.0],
     )
 
     # Trainer
     trainer = GRPOTrainer(
         model=model,
-        reward_funcs=[reward_goal_reached, reward_num_steps, reward_illegal_actions],
+        reward_funcs=[reward_goal_reached, reward_illegal_actions],
         args=training_args,
         train_dataset=prompt_dataset["train"],
         eval_dataset=prompt_dataset["eval"],
@@ -172,8 +177,8 @@ def main():
     # trainer.processing_class.pad_token = tokenizer.eos_token
 
     # Evaluate before training (max_eval_samples samples)
-    accuracy, preds = evaluate_model(model, tokenizer, dataset["eval"], batch_size=config.sft_batch_size)
-    print(f"Test Accuracy before training: {accuracy:.4f}")
+    accuracy, distance, preds = evaluate_model(model, tokenizer, dataset["eval"], batch_size=config.sft_batch_size)
+    print(f"Test accuracy before training: {accuracy:.4f}, avg distance: {distance:.4f}")
 
     # Train the model
     try:
@@ -187,8 +192,8 @@ def main():
     tokenizer.save_pretrained(output_dir)
 
     # Evaluate after training (full test set)
-    accuracy, preds = evaluate_model(model, tokenizer, dataset["test"], batch_size=config.sft_batch_size)
-    print(f"Test Accuracy after training: {accuracy:.4f}")
+    accuracy, distance, preds = evaluate_model(model, tokenizer, dataset["test"], batch_size=config.sft_batch_size)
+    print(f"Test accuracy after training: {accuracy:.4f}, avg distance: {distance:.4f}")
 
 
 if __name__ == "__main__":

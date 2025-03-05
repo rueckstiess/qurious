@@ -5,12 +5,12 @@ Configuration file for the LLM SQL Explorer project.
 
 class Config:
     # Model Settings
-    base_model = "meta-llama/Llama-3.2-1B-Instruct"  # Base LLM
+    base_model = "meta-llama/Llama-3.2-3B-Instruct"  # Base LLM
     peft_config = {
         "r": 8,
         "lora_alpha": 16,
         "lora_dropout": 0.05,
-        "target_modules": ["q_proj", "v_proj", "o_proj"],  # Reduced parameter count
+        "target_modules": "all-linear",  # Reduced parameter count
         "bias": "none",
     }
 
