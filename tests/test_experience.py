@@ -126,6 +126,29 @@ class TestExperience(unittest.TestCase):
         current = self.single_episode_exp.get_current_episode()
         self.assertEqual(len(current), 1)
         self.assertFalse(current[0].done)
+        
+    def test_get_current_episode_after_done(self):
+        """Test that get_current_episode returns the last completed episode after done."""
+        exp = Experience()
+        # Add a complete episode
+        transitions = [
+            Transition(0, 1, 0.5, 1, False),
+            Transition(1, 0, 1.0, 2, False),
+            Transition(2, 1, -1.0, 3, True),  # Episode end
+        ]
+        for t in transitions:
+            exp.add(t)
+            
+        # After the done transition, get_current_episode should return the completed episode
+        current = exp.get_current_episode()
+        self.assertEqual(len(current), 3)
+        self.assertTrue(current[-1].done)
+        
+        # Once we add a new transition, get_current_episode should return only that new transition
+        exp.add(Transition(3, 0, 0.5, 4, False))
+        current = exp.get_current_episode()
+        self.assertEqual(len(current), 1)
+        self.assertEqual(current[0].state, 3)
 
     def test_clear(self):
         """Test clearing experience buffer."""

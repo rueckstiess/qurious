@@ -1,7 +1,7 @@
 import unittest
 
 from qurious.rl.agents import QLearningAgent, TabularAgent, ValueBasedAgent
-from qurious.rl.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
+from qurious.rl.policies.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
 from qurious.rl.value_fns import TabularActionValueFunction
 
 
