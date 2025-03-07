@@ -85,3 +85,23 @@ class Environment:
             done: Whether the episode has terminated
         """
         return self._done
+
+    @property
+    def num_states(self):
+        """
+        Get the total number of states in the environment.
+
+        Returns:
+            int: Number of states
+        """
+        return len(self.state_space)
+
+    @property
+    def num_actions(self):
+        """
+        Get the number of possible actions.
+
+        Returns:
+            int: Number of actions
+        """
+        return len(self.action_space)

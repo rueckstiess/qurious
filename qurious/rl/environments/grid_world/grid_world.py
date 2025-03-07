@@ -151,24 +151,6 @@ class GridWorld(Environment):
 
         return next_state, reward, done, info
 
-    def get_num_states(self):
-        """
-        Get the total number of states in the environment.
-
-        Returns:
-            int: Number of states
-        """
-        return self.width * self.height
-
-    def get_num_actions(self):
-        """
-        Get the number of possible actions.
-
-        Returns:
-            int: Number of actions
-        """
-        return 4  # UP, RIGHT, DOWN, LEFT
-
     def render(self):
         """
         Render the grid world as a string.
@@ -292,7 +274,7 @@ class GridWorld(Environment):
         Returns:
             The action space
         """
-        return list(range(self.get_num_actions()))
+        return list(range(4))  # UP, RIGHT, DOWN, LEFT
 
     @property
     def state_space(self):
@@ -302,7 +284,7 @@ class GridWorld(Environment):
         Returns:
             The state space
         """
-        return list(range(self.get_num_states()))
+        return list(range(self.width * self.height))
 
 
 def make_grid_world(size, **kwargs):

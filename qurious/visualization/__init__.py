@@ -6,7 +6,7 @@ from qurious.visualization.state_value_layer import StateValueLayer
 from qurious.visualization.action_value_layer import ActionValueLayer
 from qurious.visualization.trajectory_layer import TrajectoryLayer, EpisodeAnimator
 from qurious.visualization.eligibility_trace_layer import EligibilityTraceLayer
-
+from qurious.visualization.utils import clear_output
 
 # Shortcut function to create a preconfigured visualizer with common layers
 def create_gridworld_visualizer(env, policy=None, value_fn=None, action_value_fn=None):
@@ -55,4 +55,5 @@ __all__ = [
     "EligibilityTraceLayer",
     "EpisodeAnimator",
     "create_gridworld_visualizer",
+    "clear_output",
 ]

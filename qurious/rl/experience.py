@@ -26,7 +26,7 @@ class Transition:
 class Experience:
     """Stores and manages agent experience data."""
 
-    def __init__(self, capacity: Optional[int] = None, enable_logging: bool = False):
+    def __init__(self, enable_logging: bool = False, capacity: Optional[int] = None):
         """
         Initialize experience storage.
 
