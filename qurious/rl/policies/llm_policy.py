@@ -208,9 +208,15 @@ class LLMPolicy(Policy):
         # Tokenize the prompt
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
 
-        # Generate text
+        # Generate text - ensure we're in no_grad mode
         with torch.no_grad():
-            outputs = self.model.generate(**inputs, **self.generation_kwargs)
+            # Use more stable generation settings for inference
+            gen_kwargs = dict(self.generation_kwargs)
+            gen_kwargs["do_sample"] = True  # Force sampling
+            gen_kwargs["num_beams"] = 1     # No beam search
+            gen_kwargs["temperature"] = max(0.7, gen_kwargs.get("temperature", 0.7))  # Ensure temperature is not too low
+            
+            outputs = self.model.generate(**inputs, **gen_kwargs)
 
         # Decode the output
         generated_text = self.tokenizer.decode(outputs[0][inputs.input_ids.shape[1] :], skip_special_tokens=True)
@@ -411,8 +417,7 @@ class TrainableLLMPolicy(LLMPolicy):
         # For each token in the action, calculate its probability given previous context
         for i in range(action_ids.shape[1]):
             # Forward pass to get logits
-            with torch.no_grad():
-                outputs = self.model(input_ids=current_input_ids)
+            outputs = self.model(input_ids=current_input_ids)
 
             logits = outputs.logits[:, -1, :]  # Get logits for the next token prediction
 

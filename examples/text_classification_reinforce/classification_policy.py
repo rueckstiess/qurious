@@ -78,10 +78,11 @@ class ClassificationPolicy(TrainableLLMPolicy):
         self.classes = classes or ["positive", "negative"]
 
         # Create state formatter with class information
-        if kwargs.get("use_chat_format", None) or is_chat_model(model_name_or_path):
-            state_formatter = lambda text: classification_chat_formatter(text, self.classes)
-        else:
-            state_formatter = lambda text: classification_prompt_formatter(text, self.classes)
+        def state_formatter(text):
+            if kwargs.get("use_chat_format", None) or is_chat_model(model_name_or_path):
+                return classification_chat_formatter(text, self.classes)
+            else:
+                return classification_prompt_formatter(text, self.classes)
 
         # Initialize with classification-specific formatters and parsers
         super().__init__(

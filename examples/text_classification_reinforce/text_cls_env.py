@@ -50,7 +50,7 @@ class TextClassificationEnvironment(Environment):
         if not self._validation_mode:
             random.shuffle(self.examples)
 
-    def reset(self):
+    def reset(self, use_same_example: bool = False):
         """
         Reset the environment to a new example.
 
@@ -58,6 +58,10 @@ class TextClassificationEnvironment(Environment):
             The initial state (text to classify)
         """
         self._done = False
+
+        if use_same_example and self._current_example is not None:
+            # If using the same example, return the current one
+            return self.get_state()
 
         if self._validation_mode:
             # In validation mode, go through examples sequentially

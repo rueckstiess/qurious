@@ -40,7 +40,7 @@ def train(model_name, num_episodes=100, lr=5e-6, gamma=0.99, eval_interval=10, s
 
     # Create agent
     agent = REINFORCEAgent(policy=policy, gamma=gamma, lr=lr)
-    agent.enable_experience_tracking()
+    agent.enable_experience_tracking(enable_logging=True)
 
     # Training metrics
     rewards = []
