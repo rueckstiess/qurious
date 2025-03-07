@@ -213,9 +213,11 @@ class LLMPolicy(Policy):
             # Use more stable generation settings for inference
             gen_kwargs = dict(self.generation_kwargs)
             gen_kwargs["do_sample"] = True  # Force sampling
-            gen_kwargs["num_beams"] = 1     # No beam search
-            gen_kwargs["temperature"] = max(0.7, gen_kwargs.get("temperature", 0.7))  # Ensure temperature is not too low
-            
+            gen_kwargs["num_beams"] = 1  # No beam search
+            gen_kwargs["temperature"] = max(
+                0.7, gen_kwargs.get("temperature", 0.7)
+            )  # Ensure temperature is not too low
+
             outputs = self.model.generate(**inputs, **gen_kwargs)
 
         # Decode the output
