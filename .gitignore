@@ -9,5 +9,6 @@ results/
 outputs/
 adapters/
 logs/
+models/
 wandb/
 *.egg-info

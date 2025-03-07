@@ -44,14 +44,14 @@ class Agent(ABC):
         """Reset the agent's internal state (e.g., for a new episode)."""
         pass
 
-    def enable_experience_tracking(self, capacity: Optional[int] = None) -> None:
+    def enable_experience_tracking(self, capacity: Optional[int] = None, enable_logging: bool = False) -> None:
         """
         Enable experience tracking for the agent.
 
         Args:
             capacity: Maximum number of transitions to store (None for unlimited)
         """
-        self.experience = Experience(capacity)
+        self.experience = Experience(capacity, enable_logging)
 
     def disable_experience_tracking(self) -> None:
         """Disable experience tracking."""

@@ -3,7 +3,7 @@ import numpy as np
 
 from qurious.rl.environments import GridWorld
 from qurious.rl.experience import Transition
-from qurious.rl.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy, SoftmaxPolicy
+from qurious.rl.policies import DeterministicTabularPolicy, EpsilonGreedyPolicy, SoftmaxPolicy
 from qurious.rl.value_fns import TabularActionValueFunction, TabularStateValueFunction
 from qurious.visualization import (
     AgentLayer,

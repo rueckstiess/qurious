@@ -1,8 +1,12 @@
+import logging
 from collections import deque
 from dataclasses import dataclass
 from typing import Any, Iterator, List, Optional, Tuple
 
 import numpy as np
+
+# Configure basic logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
 @dataclass
@@ -22,17 +26,21 @@ class Transition:
 class Experience:
     """Stores and manages agent experience data."""
 
-    def __init__(self, capacity: Optional[int] = None):
+    def __init__(self, capacity: Optional[int] = None, enable_logging: bool = False):
         """
         Initialize experience storage.
 
         Args:
             capacity: Maximum number of transitions to store (None for unlimited)
+            enable_logging: Whether to log transitions when added (default: False)
         """
         self.capacity = capacity
         self.buffer = deque(maxlen=capacity)
         self.episode_boundaries = []  # Store indices where episodes end
         self._current_episode: List[Transition] = []
+        self._last_completed_episode: List[Transition] = []
+        self.enable_logging = enable_logging
+        self.logger = logging.getLogger(__name__)
 
     def add(self, transition: Transition) -> None:
         """
@@ -44,9 +52,22 @@ class Experience:
         self.buffer.append(transition)
         self._current_episode.append(transition)
 
+        if self.enable_logging:
+            self.logger.info(
+                f"Added transition: state={transition.state}, action={transition.action}, "
+                f"reward={transition.reward:.4f}, done={transition.done}"
+            )
+
         if transition.done:
             self.episode_boundaries.append(len(self.buffer) - 1)
+            self._last_completed_episode = self._current_episode
             self._current_episode = []
+
+            if self.enable_logging:
+                self.logger.info(
+                    f"Episode completed with {len(self._last_completed_episode)} transitions, "
+                    f"total return: {sum(t.reward for t in self._last_completed_episode):.4f}"
+                )
 
     def sample_batch(self, batch_size: int) -> List[Transition]:
         """
@@ -93,17 +114,22 @@ class Experience:
     def get_current_episode(self) -> List[Transition]:
         """
         Get transitions from the current ongoing episode.
+        If the current episode is empty and an episode just completed,
+        returns the last completed episode instead.
 
         Returns:
-            List of transitions in the current episode
+            List of transitions in the current episode or last completed episode
         """
-        return self._current_episode
+        if self._current_episode:
+            return self._current_episode
+        return self._last_completed_episode
 
     def clear(self) -> None:
         """Clear all stored experience."""
         self.buffer.clear()
         self.episode_boundaries.clear()
         self._current_episode.clear()
+        self._last_completed_episode.clear()
 
     @property
     def size(self) -> int:
