@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Self, Tuple
+from typing import Any, Optional, Tuple
 
 from ..environments import Environment
 from ..experience import Experience, Transition
@@ -170,7 +170,7 @@ class ValueBasedAgent(TabularAgent):
         self.gamma = gamma
 
     @classmethod
-    def from_env(cls, env: Environment, **kwargs) -> Self:
+    def from_env(cls, env: Environment, **kwargs):
         """
         Create a default ValueBasedAgent with a simple epsilon-greedy policy and Q-function.
 
