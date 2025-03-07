@@ -1,4 +1,6 @@
+import logging
 import unittest
+from io import StringIO
 
 import numpy as np
 
@@ -126,7 +128,7 @@ class TestExperience(unittest.TestCase):
         current = self.single_episode_exp.get_current_episode()
         self.assertEqual(len(current), 1)
         self.assertFalse(current[0].done)
-        
+
     def test_get_current_episode_after_done(self):
         """Test that get_current_episode returns the last completed episode after done."""
         exp = Experience()
@@ -138,12 +140,12 @@ class TestExperience(unittest.TestCase):
         ]
         for t in transitions:
             exp.add(t)
-            
+
         # After the done transition, get_current_episode should return the completed episode
         current = exp.get_current_episode()
         self.assertEqual(len(current), 3)
         self.assertTrue(current[-1].done)
-        
+
         # Once we add a new transition, get_current_episode should return only that new transition
         exp.add(Transition(3, 0, 0.5, 4, False))
         current = exp.get_current_episode()
@@ -249,6 +251,91 @@ class TestExperience(unittest.TestCase):
         # Test iteration over empty experience
         self.assertEqual(list(exp), [])
         self.assertEqual(list(exp.iter_episodes()), [])
+
+    def test_logging_disabled_by_default(self):
+        """Test that logging is disabled by default."""
+        exp = Experience(capacity=10)
+        self.assertFalse(exp.enable_logging)
+
+    def test_logging_enabled(self):
+        """Test that logging can be enabled."""
+        exp = Experience(capacity=10, enable_logging=True)
+        self.assertTrue(exp.enable_logging)
+
+    def test_logging_add_transition(self):
+        """Test that transitions are logged when logging is enabled."""
+        # Setup a string IO as log handler to capture logs
+        log_capture = StringIO()
+        handler = logging.StreamHandler(log_capture)
+        logger = logging.getLogger("qurious.rl.experience")
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(handler)
+
+        # Create experience with logging enabled
+        exp = Experience(capacity=10, enable_logging=True)
+
+        # Add a transition
+        t = Transition(state=1, action=2, reward=0.5, next_state=3, done=False)
+        exp.add(t)
+
+        # Check log output
+        log_content = log_capture.getvalue()
+        self.assertIn("Added transition:", log_content)
+        self.assertIn("state=1", log_content)
+        self.assertIn("action=2", log_content)
+        self.assertIn("reward=0.50", log_content)
+        self.assertIn("done=False", log_content)
+
+        # Cleanup
+        logger.removeHandler(handler)
+
+    def test_logging_episode_completion(self):
+        """Test that episode completion is logged when logging is enabled."""
+        # Setup a string IO as log handler to capture logs
+        log_capture = StringIO()
+        handler = logging.StreamHandler(log_capture)
+        logger = logging.getLogger("qurious.rl.experience")
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(handler)
+
+        # Create experience with logging enabled
+        exp = Experience(capacity=10, enable_logging=True)
+
+        # Add an episode
+        exp.add(Transition(state=1, action=2, reward=0.5, next_state=3, done=False))
+        exp.add(Transition(state=3, action=1, reward=1.0, next_state=5, done=False))
+        exp.add(Transition(state=5, action=0, reward=2.0, next_state=7, done=True))
+
+        # Check log output
+        log_content = log_capture.getvalue()
+        self.assertIn("Episode completed with 3 transitions", log_content)
+        self.assertIn("total return: 3.50", log_content)
+
+        # Cleanup
+        logger.removeHandler(handler)
+
+    def test_logging_disabled_no_output(self):
+        """Test that no logging occurs when logging is disabled."""
+        # Setup a string IO as log handler to capture logs
+        log_capture = StringIO()
+        handler = logging.StreamHandler(log_capture)
+        logger = logging.getLogger("qurious.rl.experience")
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(handler)
+
+        # Create experience with logging disabled
+        exp = Experience(capacity=10, enable_logging=False)
+
+        # Add transitions
+        exp.add(Transition(state=1, action=2, reward=0.5, next_state=3, done=False))
+        exp.add(Transition(state=3, action=1, reward=1.0, next_state=5, done=True))
+
+        # Check log output - should be empty
+        log_content = log_capture.getvalue()
+        self.assertEqual(log_content, "")
+
+        # Cleanup
+        logger.removeHandler(handler)
 
 
 if __name__ == "__main__":
