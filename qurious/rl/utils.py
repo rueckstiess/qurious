@@ -1,6 +1,3 @@
-import os
-
-
 def train_agent(env, agent, num_episodes=100, step_callback=None, episode_callback=None):
     """
     Train an agent in an environment for a number of episodes.

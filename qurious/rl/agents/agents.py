@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Tuple, Self
+from typing import Any, Optional, Self, Tuple
 
 from ..environments import Environment
 from ..experience import Experience, Transition
