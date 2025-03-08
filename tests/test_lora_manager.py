@@ -16,8 +16,8 @@ def mock_config():
     config.model = MagicMock(spec=ModelConfig)
     config.model.base_model = "mock-model/test"
     config.model.device = "cpu"
+    config.model.lora_enabled = True
     config.model.lora_config = MagicMock(spec=LoraConfig)
-    config.model.lora_config.enabled = True
     config.model.lora_config.r = 8
     config.model.lora_config.lora_alpha = 16
     config.model.lora_config.lora_dropout = 0.05
@@ -93,7 +93,7 @@ class TestLoraManager:
 
     def test_init_without_lora(self, mock_config, mock_dependencies):
         """Test initialization with LoRA disabled."""
-        mock_config.model.lora_config.enabled = False
+        mock_config.model.lora_enabled = False
         manager = LoraManager(mock_config)
 
         # Check that no adapters were created

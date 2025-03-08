@@ -19,8 +19,8 @@ a sequence of comma-separated actions (up, down, left, right) that lead to the g
 
 def create_agent(env):
     # Create agent components
-    n_states = env.get_num_states()
-    n_actions = env.get_num_actions()
+    n_states = env.get_n_states()
+    n_actions = env.get_n_actions()
 
     # Q-function
     q_function = TabularActionValueFunction(n_states, n_actions)

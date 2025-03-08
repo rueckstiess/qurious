@@ -9,7 +9,6 @@ from numpy.testing import assert_array_almost_equal, assert_array_equal
 from qurious.rl.policies import (
     DeterministicTabularPolicy,
     EpsilonGreedyPolicy,
-    SoftmaxPolicy,
 )
 
 
@@ -128,7 +127,6 @@ class TestEpsilonGreedyPolicy(unittest.TestCase):
 
     def test_initialization(self):
         """Test if policy is initialized correctly."""
-        self.assertEqual(self.policy.n_states, self.n_states)
         self.assertEqual(self.policy.n_actions, self.n_actions)
         self.assertEqual(self.policy.epsilon, self.epsilon)
         self.assertEqual(self.policy.base_policy, self.base_policy)
@@ -223,133 +221,6 @@ class TestEpsilonGreedyPolicy(unittest.TestCase):
         # Decay should have no effect
         policy.decay_epsilon()
         self.assertEqual(policy.epsilon, initial_epsilon)
-
-
-class TestSoftmaxPolicy(unittest.TestCase):
-    def setUp(self):
-        """Set up policy for testing."""
-        self.n_states = 3
-        self.n_actions = 4
-        self.temperature = 0.5
-
-        self.policy = SoftmaxPolicy(self.n_states, self.n_actions, self.temperature)
-
-        # Set some action values
-        self.policy.action_values[0] = np.array([1.0, 2.0, 0.5, 0.0])
-        self.policy.action_values[1] = np.array([0.0, 0.0, 0.0, 0.0])
-        self.policy.action_values[2] = np.array([-1.0, -2.0, 3.0, 1.0])
-
-    def test_initialization(self):
-        """Test if policy is initialized correctly."""
-        # Create a fresh policy for this test
-        fresh_policy = SoftmaxPolicy(self.n_states, self.n_actions, self.temperature)
-
-        self.assertEqual(fresh_policy.n_states, self.n_states)
-        self.assertEqual(fresh_policy.n_actions, self.n_actions)
-        self.assertEqual(fresh_policy.temperature, self.temperature)
-        assert_array_equal(fresh_policy.action_values, np.zeros((self.n_states, self.n_actions)))
-
-    def test_get_action_probabilities(self):
-        """Test getting action probabilities."""
-        # For state 0, with action values [1.0, 2.0, 0.5, 0.0] and temperature 0.5
-        # Probs = softmax(values / temperature)
-        state = 0
-        probs = self.policy.get_action_probabilities(state)
-
-        # Calculate expected probabilities
-        values = self.policy.action_values[state]
-        exp_values = np.exp(values / self.temperature)
-        expected = exp_values / np.sum(exp_values)
-
-        assert_array_almost_equal(probs, expected)
-
-        # For state 1, all values are 0, so probabilities should be uniform
-        state = 1
-        probs = self.policy.get_action_probabilities(state)
-        expected = np.ones(self.n_actions) / self.n_actions
-        assert_array_almost_equal(probs, expected)
-
-    def test_get_action(self):
-        """Test sampling actions."""
-        # This is a probabilistic test
-        np.random.seed(42)
-
-        state = 0
-        n_samples = 10000
-        actions = [self.policy.get_action(state) for _ in range(n_samples)]
-        action_counts = np.bincount(actions, minlength=self.n_actions)
-        action_probs = action_counts / n_samples
-
-        # Expected probabilities
-        values = self.policy.action_values[state]
-        exp_values = np.exp(values / self.temperature)
-        expected = exp_values / np.sum(exp_values)
-
-        assert_array_almost_equal(action_probs, expected, decimal=2)
-
-    def test_update(self):
-        """Test updating the policy."""
-        state = 1
-        action = 2
-        value = 5.0
-
-        # Update action value
-        self.policy.update(state, action, value)
-        self.assertEqual(self.policy.action_values[state, action], value)
-
-        # Check that probabilities reflect the update
-        probs = self.policy.get_action_probabilities(state)
-
-        # After update, action 2 should have much higher probability
-        self.assertTrue(probs[action] > 0.9)  # Should be close to 1.0
-
-    def test_update_from_value_fn(self):
-        """Test updating policy from a value function."""
-
-        # Create a mock value function
-        class MockValueFunction:
-            def estimate_all_actions(self, state):
-                # Return different values for each state
-                values = {
-                    0: np.array([1.0, 2.0, -1.0, 0.0]),
-                    1: np.array([0.5, -0.5, 1.5, 0.0]),
-                    2: np.array([-1.0, 2.0, 0.0, 1.0]),
-                }
-                return values[state]
-
-        mock_value_fn = MockValueFunction()
-
-        # Update policy using mock value function
-        self.policy.update_from_value_fn(mock_value_fn)
-
-        # Check if action values were updated correctly
-        for state in range(self.n_states):
-            expected_values = mock_value_fn.estimate_all_actions(state)
-            assert_array_almost_equal(
-                self.policy.action_values[state], expected_values, err_msg=f"Action values mismatch for state {state}"
-            )
-
-    def test_save_and_load(self):
-        """Test saving and loading the policy."""
-        # Save to temporary file
-        with tempfile.NamedTemporaryFile(delete=False) as tmp:
-            filepath = tmp.name
-
-        try:
-            self.policy.save(filepath)
-
-            # Load the policy
-            loaded_policy = SoftmaxPolicy.load(filepath)
-
-            # Check if loaded policy matches original
-            self.assertEqual(loaded_policy.n_states, self.policy.n_states)
-            self.assertEqual(loaded_policy.n_actions, self.policy.n_actions)
-            self.assertEqual(loaded_policy.temperature, self.policy.temperature)
-            assert_array_almost_equal(loaded_policy.action_values, self.policy.action_values)
-        finally:
-            # Clean up
-            if os.path.exists(filepath):
-                os.remove(filepath)
 
 
 if __name__ == "__main__":

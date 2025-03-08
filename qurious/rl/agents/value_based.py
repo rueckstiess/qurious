@@ -1,147 +1,13 @@
-from abc import ABC, abstractmethod
-from typing import Any, Optional, Tuple
+from typing import Optional, Tuple
 
 from ..environments import Environment
-from ..experience import Experience, Transition
+from ..experience import Transition
 from ..policies import DeterministicTabularPolicy, EpsilonGreedyPolicy
 from ..value_fns import TabularActionValueFunction
+from .agent import Agent
 
 
-class Agent(ABC):
-    """
-    Abstract base class for all reinforcement learning agents.
-
-    An agent interacts with an environment by choosing actions and learning from experience.
-    """
-
-    def __init__(self, track_experience: bool = True, enable_logging: bool = False, capacity: Optional[int] = None):
-        """Initialize an agent."""
-        if track_experience:
-            self.track_experience(True, enable_logging, capacity)
-        else:
-            self.track_experience(False)
-
-    @abstractmethod
-    def choose_action(self, state):
-        """
-        Select an action for the given state.
-
-        Args:
-            state: The current state of the environment
-
-        Returns:
-            The chosen action
-        """
-        pass
-
-    @abstractmethod
-    def learn(self, experience: Any):
-        """
-        Update the agent's policy and/or value function based on experience.
-
-        Args:
-            experience: Experience data from interacting with the environment
-                       (could be a single transition, episode, or batch)
-        """
-        pass
-
-    @abstractmethod
-    def reset(self):
-        """Reset the agent's internal state (e.g., for a new episode)."""
-        pass
-
-    def track_experience(self, enabled: bool, enable_logging: bool = False, capacity: Optional[int] = None) -> None:
-        """
-        Enable or disable experience tracking.
-
-        Args:
-            enabled (bool): Whether to track experience
-            enable_logging (bool): Whether to log transitions when added
-            capacity (int, optional): Maximum number of transitions to store
-        """
-        if enabled:
-            self.experience = Experience(enable_logging=enable_logging, capacity=capacity)
-        else:
-            self.experience = None
-
-    def store_experience(self, state, action, reward, next_state, done) -> None:
-        """
-        Store a transition in the experience buffer if tracking is enabled.
-
-        Args:
-            state: Current state
-            action: Action taken
-            reward: Reward received
-            next_state: Next state
-            done: Whether the episode ended
-        """
-        if self.experience is not None:
-            transition = Transition(state, action, reward, next_state, done)
-            self.experience.add(transition)
-
-
-class TabularAgent(Agent):
-    """
-    Base class for agents with tabular representations.
-
-    This agent maintains a policy and optionally state and/or action value functions.
-    """
-
-    def __init__(
-        self,
-        policy,
-        value_function=None,
-        enable_logging: bool = False,
-    ):
-        """
-        Initialize a tabular agent.
-
-        Args:
-            policy (Policy): The agent's policy
-            value_function (ValueFunction, optional): The agent's value function
-            enable_logging (bool): Whether to log transitions when added
-        """
-        # Tabular agents always track experience
-        super().__init__(track_experience=True, enable_logging=enable_logging)
-        self.policy = policy
-        self.value_function = value_function
-
-    def choose_action(self, state):
-        """
-        Select an action using the agent's policy.
-
-        Args:
-            state: The current state
-
-        Returns:
-            The chosen action
-        """
-        return self.policy.get_action(state)
-
-    def learn(self, experience: Any):
-        """
-        Base implementation of learning method.
-
-        This base implementation does nothing and should be overridden by subclasses.
-
-        Args:
-            experience: Experience data from interacting with the environment
-        """
-        pass
-
-    def reset(self, clear_experience: bool = False):
-        """Reset agent's internal state."""
-        if hasattr(self.policy, "reset"):
-            self.policy.reset()
-
-        if self.value_function is not None and hasattr(self.value_function, "reset"):
-            self.value_function.reset()
-
-        if clear_experience and self.experience is not None:
-            self.experience.clear()
-
-
-class ValueBasedAgent(TabularAgent):
+class ValueBasedAgent(Agent):
     """
     Agent that uses value functions to make decisions.
 
@@ -156,7 +22,7 @@ class ValueBasedAgent(TabularAgent):
         enable_logging: bool = False,
     ):
         """
-        Initialize a value-based agent.
+        Initialize a tabular value-based agent.
 
         Args:
             policy (Policy): The agent's policy (typically epsilon-greedy or derived from Q)
@@ -164,15 +30,15 @@ class ValueBasedAgent(TabularAgent):
             gamma (float, optional): Discount factor for future rewards
             enable_logging (bool): Whether to log transitions when added
         """
-
-        super().__init__(policy, action_value_function, enable_logging=enable_logging)
+        super().__init__(track_experience=True, enable_logging=enable_logging)
+        self.policy = policy
         self.Q = action_value_function  # Alias for clarity
         self.gamma = gamma
 
     @classmethod
     def from_env(cls, env: Environment, **kwargs):
         """
-        Create a default ValueBasedAgent with a simple epsilon-greedy policy and Q-function.
+        Create a default TabularValueBasedAgent with a simple epsilon-greedy policy and Q-function.
 
         Args:
             env (Environment): The environment to create the agent for
@@ -183,14 +49,14 @@ class ValueBasedAgent(TabularAgent):
                 - enable_logging (bool): Whether to log transitions when added
 
         Returns:
-            ValueBasedAgent: A new agent instance with default components
+            TabularValueBasedAgent: A new agent instance with default components
         """
 
         # Q-function
-        q_function = TabularActionValueFunction(env.num_states, env.num_actions)
+        q_function = TabularActionValueFunction(env.n_states, env.n_actions)
 
         # Base policy (will be updated based on Q-values)
-        base_policy = DeterministicTabularPolicy(env.num_states, env.num_actions)
+        base_policy = DeterministicTabularPolicy(env.n_states, env.n_actions)
 
         # Epsilon-greedy exploration policy
         epsilon = kwargs.pop("epsilon", 0.5)
@@ -226,6 +92,18 @@ class ValueBasedAgent(TabularAgent):
 
         return transition
 
+    def choose_action(self, state):
+        """
+        Select an action using the agent's policy.
+
+        Args:
+            state: The current state
+
+        Returns:
+            The chosen action
+        """
+        return self.policy.get_action(state)
+
     def learn(self, transition: Optional[Transition | Tuple] = None):
         """
         Update the agent's value function and policy based on a transition.
@@ -253,6 +131,17 @@ class ValueBasedAgent(TabularAgent):
 
         # Update the policy if it depends on the value function
         self.policy.update_from_value_fn(self.Q)
+
+    def reset(self, clear_experience: bool = False):
+        """Reset agent's internal state."""
+        if hasattr(self.policy, "reset"):
+            self.policy.reset()
+
+        if hasattr(self.Q, "reset"):
+            self.Q.reset()
+
+        if clear_experience and self.experience is not None:
+            self.experience.clear()
 
 
 class QLearningAgent(ValueBasedAgent):

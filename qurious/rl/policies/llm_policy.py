@@ -5,22 +5,9 @@ import numpy as np
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from qurious.llms.utils import auto_device
+
 from .policy import Policy
-
-
-def auto_device():
-    """
-    Automatically select the best available device.
-
-    Returns:
-        torch.device: The selected device
-    """
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        return torch.device("mps")
-    else:
-        return torch.device("cpu")
 
 
 def is_chat_model(model_name: str) -> bool:

@@ -48,10 +48,10 @@ from qurious.visualization import create_gridworld_visualizer
 
 # Create a grid world and policy
 env = GridWorld(width=5, height=4)
-policy = DeterministicTabularPolicy(env.get_num_states(), env.get_num_actions())
+policy = DeterministicTabularPolicy(env.get_n_states(), env.get_n_actions())
 
 # Set policy actions (this is just an example)
-for s in range(env.get_num_states()):
+for s in range(env.get_n_states()):
     policy.update(s, 1)  # Always move right
 
 # Create a visualizer with the policy

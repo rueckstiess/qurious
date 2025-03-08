@@ -32,7 +32,6 @@ The framework consists of the following core components:
 
 ### Agents
 - Abstract Agent base class defining the core agent interface and supporting experience tracking
-- TabularAgent for agents with tabular representations
 - Value-based agents including:
   - QLearningAgent (off-policy TD control)
   - SarsaAgent (on-policy TD control)
