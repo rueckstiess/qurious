@@ -13,6 +13,7 @@ class LoraConfig(BaseSettings):
     lora_dropout: float = 0.05
     target_modules: str = "all-linear"
     bias: str = "none"
+    task_type: str = "CAUSAL_LM"
 
 
 class ModelConfig(BaseSettings):
@@ -20,6 +21,7 @@ class ModelConfig(BaseSettings):
 
     base_model: str = "meta-llama/Llama-3.2-3B-Instruct"
     lora_config: LoraConfig = Field(default_factory=LoraConfig)
+    device: str = "auto"
 
 
 class TrainingConfig(BaseSettings):
@@ -33,6 +35,7 @@ class TrainingConfig(BaseSettings):
 
 
 class PathConfig(BaseSettings):
+    checkpoint_dir: str = "./checkpoints"
     output_dir: str = "./outputs"
     log_dir: str = "./logs"
     data_dir: str = "./data"
