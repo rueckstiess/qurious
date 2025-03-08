@@ -25,6 +25,8 @@ dependencies = [
     "scikit-learn>=1.6.1",
     "peft>=0.14.0",
     "datasets>=3.3.2",
+    "pydantic==2.10.6",
+    "pydantic-settings==2.8.1"
 ]
 
 [tool.setuptools.packages.find]
