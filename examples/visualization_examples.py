@@ -62,8 +62,8 @@ def example_policy_visualization():
     )
 
     # Create a deterministic policy
-    n_states = env.get_num_states()
-    n_actions = env.get_num_actions()
+    n_states = env.get_n_states()
+    n_actions = env.get_n_actions()
     det_policy = DeterministicTabularPolicy(n_states, n_actions)
 
     # Set some specific actions for the policy
@@ -119,8 +119,8 @@ def example_value_function_visualization():
     )
 
     # Create a state value function
-    n_states = env.get_num_states()
-    n_actions = env.get_num_actions()
+    n_states = env.get_n_states()
+    n_actions = env.get_n_actions()
     v_func = TabularStateValueFunction(n_states, initial_value=0.0)
 
     # Set some state values (distance-based heuristic)
@@ -260,7 +260,7 @@ def example_eligibility_trace():
     )
 
     # Create a state value function
-    n_states = env.get_num_states()
+    n_states = env.get_n_states()
     TabularStateValueFunction(n_states, initial_value=0.0)
 
     # Create mock eligibility traces
@@ -300,8 +300,8 @@ def example_advanced_composition():
     )
 
     # Create a state value function
-    n_states = env.get_num_states()
-    n_actions = env.get_num_actions()
+    n_states = env.get_n_states()
+    n_actions = env.get_n_actions()
     v_func = TabularStateValueFunction(n_states, initial_value=0.0)
 
     # Set some state values (distance-based heuristic)

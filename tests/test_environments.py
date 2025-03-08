@@ -9,10 +9,10 @@ from qurious.rl.policies import DeterministicTabularPolicy, EpsilonGreedyPolicy
 class MockEnvironment(Environment):
     """A mock environment for testing."""
 
-    def __init__(self, num_states=10, num_actions=4):
+    def __init__(self, n_states=10, n_actions=4):
         super().__init__()
-        self._num_states = num_states
-        self._num_actions = num_actions
+        self._n_states = n_states
+        self._n_actions = n_actions
 
     def step(self, action):
         return 0, 0, False, {}
@@ -22,11 +22,11 @@ class MockEnvironment(Environment):
 
     @property
     def action_space(self):
-        return list(range(self._num_actions))
+        return list(range(self._n_actions))
 
     @property
     def state_space(self):
-        return list(range(self._num_states))
+        return list(range(self._n_states))
 
     @property
     def observation_space(self):
@@ -62,8 +62,8 @@ class TestEnvironmentProperties(unittest.TestCase):
                 return self.state_space
 
         mock_env = MockEnv()
-        self.assertEqual(mock_env.num_states, 5)
-        self.assertEqual(mock_env.num_actions, 3)
+        self.assertEqual(mock_env.n_states, 5)
+        self.assertEqual(mock_env.n_actions, 3)
 
 
 class TestGridWorldProperties(unittest.TestCase):
@@ -73,25 +73,25 @@ class TestGridWorldProperties(unittest.TestCase):
         """Set up a grid world for testing."""
         self.grid_world = GridWorld(width=5, height=6, start_pos=(0, 0), goal_pos=[(5, 4)], obstacles=[])
 
-    def test_num_states(self):
-        """Test that num_states returns the correct value."""
+    def test_n_states(self):
+        """Test that n_states returns the correct value."""
         # For a 5x6 grid, we should have 30 states
-        self.assertEqual(self.grid_world.num_states, 30)
+        self.assertEqual(self.grid_world.n_states, 30)
 
         # Create a new grid with different dimensions
         grid_world_2 = GridWorld(width=3, height=4)
-        self.assertEqual(grid_world_2.num_states, 12)
+        self.assertEqual(grid_world_2.n_states, 12)
 
         # Check that the property uses the state_space
-        self.assertEqual(self.grid_world.num_states, len(self.grid_world.state_space))
+        self.assertEqual(self.grid_world.n_states, len(self.grid_world.state_space))
 
-    def test_num_actions(self):
-        """Test that num_actions returns the correct value."""
+    def test_n_actions(self):
+        """Test that n_actions returns the correct value."""
         # GridWorld has 4 actions: UP, RIGHT, DOWN, LEFT
-        self.assertEqual(self.grid_world.num_actions, 4)
+        self.assertEqual(self.grid_world.n_actions, 4)
 
         # Check that the property uses the action_space
-        self.assertEqual(self.grid_world.num_actions, len(self.grid_world.action_space))
+        self.assertEqual(self.grid_world.n_actions, len(self.grid_world.action_space))
 
 
 class TestAgentFromEnv(unittest.TestCase):
@@ -99,7 +99,7 @@ class TestAgentFromEnv(unittest.TestCase):
 
     def setUp(self):
         """Set up test environment."""
-        self.env = MockEnvironment(num_states=20, num_actions=5)
+        self.env = MockEnvironment(n_states=20, n_actions=5)
 
     def test_sarsa_from_env(self):
         """Test creating a SarsaAgent from environment."""

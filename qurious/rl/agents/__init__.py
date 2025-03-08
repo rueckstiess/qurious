@@ -1,1 +1,2 @@
-from .agents import Agent, TabularAgent, QLearningAgent, ValueBasedAgent, SarsaAgent, ExpectedSarsaAgent
+from .agent import Agent
+from .value_based import QLearningAgent, ValueBasedAgent, SarsaAgent, ExpectedSarsaAgent

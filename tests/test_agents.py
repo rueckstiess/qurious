@@ -1,38 +1,8 @@
 import unittest
 
-from qurious.rl.agents import Agent, QLearningAgent, TabularAgent, ValueBasedAgent
-from qurious.rl.policies.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
+from qurious.rl.agents import Agent, QLearningAgent, ValueBasedAgent
+from qurious.rl.policies import DeterministicTabularPolicy, EpsilonGreedyPolicy
 from qurious.rl.value_fns import TabularActionValueFunction
-
-
-class TestTabularAgent(unittest.TestCase):
-    def setUp(self):
-        """Set up agent for testing."""
-        self.n_states = 4
-        self.n_actions = 3
-
-        # Create a deterministic policy
-        self.policy = DeterministicTabularPolicy(self.n_states, self.n_actions)
-
-        # Create the agent
-        self.agent = TabularAgent(self.policy)
-
-    def test_initialization(self):
-        """Test if agent is initialized correctly."""
-        self.assertEqual(self.agent.policy, self.policy)
-        self.assertIsNone(self.agent.value_function)
-
-    def test_choose_action(self):
-        """Test choosing actions."""
-        # Set specific actions for the policy
-        self.policy.policy[0] = 1
-        self.policy.policy[1] = 2
-        self.policy.policy[2] = 0
-
-        # Agent should return the action from the policy
-        self.assertEqual(self.agent.choose_action(0), 1)
-        self.assertEqual(self.agent.choose_action(1), 2)
-        self.assertEqual(self.agent.choose_action(2), 0)
 
 
 class TestValueBasedAgent(unittest.TestCase):
@@ -65,9 +35,20 @@ class TestValueBasedAgent(unittest.TestCase):
     def test_initialization(self):
         """Test if agent is initialized correctly."""
         self.assertEqual(self.agent.policy, self.policy)
-        self.assertEqual(self.agent.value_function, self.value_function)
         self.assertEqual(self.agent.Q, self.value_function)  # Alias should work
         self.assertEqual(self.agent.gamma, self.gamma)
+
+    def test_choose_action(self):
+        """Test choosing actions."""
+        # Set specific actions for the policy
+        self.policy.policy[0] = 1
+        self.policy.policy[1] = 2
+        self.policy.policy[2] = 0
+
+        # Agent should return the action from the policy
+        self.assertEqual(self.agent.choose_action(0), 1)
+        self.assertEqual(self.agent.choose_action(1), 2)
+        self.assertEqual(self.agent.choose_action(2), 0)
 
     def test_sarsa_learn(self):
         """Test SARSA learning."""

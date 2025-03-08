@@ -16,7 +16,7 @@ class TestConfig(unittest.TestCase):
 
         # Test model config defaults
         self.assertEqual(config.model.base_model, "meta-llama/Llama-3.2-3B-Instruct")
-        self.assertTrue(config.model.lora_config.enabled)
+        self.assertTrue(config.model.lora_enabled)
         self.assertEqual(config.model.lora_config.r, 8)
 
         # Test training config defaults
@@ -48,7 +48,7 @@ class TestConfig(unittest.TestCase):
         """Test loading configuration from YAML file."""
         with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as tmp_file:
             config_data = {
-                "model": {"base_model": "gpt2", "lora_config": {"enabled": False, "r": 16}},
+                "model": {"base_model": "gpt2", "lora_enabled": False, "lora_config": {"r": 16}},
                 "training": {"epochs": 3, "batch_size": 8},
                 "paths": {"output_dir": "./custom_outputs"},
             }
@@ -62,7 +62,7 @@ class TestConfig(unittest.TestCase):
 
             # Check that values were loaded correctly
             self.assertEqual(config.model.base_model, "gpt2")
-            self.assertFalse(config.model.lora_config.enabled)
+            self.assertFalse(config.model.lora_enabled)
             self.assertEqual(config.model.lora_config.r, 16)
             self.assertEqual(config.training.epochs, 3)
             self.assertEqual(config.training.batch_size, 8)
@@ -116,11 +116,9 @@ class TestConfig(unittest.TestCase):
 
     def test_nested_env_var_override(self):
         """Test that nested environment variables override nested config values."""
-        with patch.dict(
-            os.environ, {"QURIOUS_MODEL__LORA_CONFIG__ENABLED": "false", "QURIOUS_MODEL__LORA_CONFIG__R": "32"}
-        ):
+        with patch.dict(os.environ, {"QURIOUS_MODEL__LORA_ENABLED": "false", "QURIOUS_MODEL__LORA_CONFIG__R": "32"}):
             config = Config()
-            self.assertFalse(config.model.lora_config.enabled)
+            self.assertFalse(config.model.lora_enabled)
             self.assertEqual(config.model.lora_config.r, 32)
 
     def test_individual_configs(self):

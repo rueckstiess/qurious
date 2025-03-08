@@ -109,13 +109,13 @@ class TestGridWorld(unittest.TestCase):
         first_line = rendered.split("\n")[0]
         self.assertEqual(first_line[0], "A")
 
-    def test_num_states(self):
+    def test_n_states(self):
         """Test getting the number of states."""
-        self.assertEqual(self.env.num_states, 12)  # 4*3 = 12
+        self.assertEqual(self.env.n_states, 12)  # 4*3 = 12
 
-    def test_num_actions(self):
+    def test_n_actions(self):
         """Test getting the number of actions."""
-        self.assertEqual(self.env.num_actions, 4)  # UP, RIGHT, DOWN, LEFT
+        self.assertEqual(self.env.n_actions, 4)  # UP, RIGHT, DOWN, LEFT
 
     def test_boundary_checks(self):
         """Test that the agent doesn't go out of bounds."""
@@ -244,7 +244,7 @@ class TestMakeGridWorld(unittest.TestCase):
             env = make_grid_world(size)
             self.assertEqual(env.width, size)
             self.assertEqual(env.height, size)
-            self.assertEqual(env.num_states, size * size)
+            self.assertEqual(env.n_states, size * size)
 
     def test_explicit_obstacles(self):
         """Test make_grid_world with explicitly provided obstacles."""

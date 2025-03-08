@@ -188,8 +188,8 @@ class GridWorld(Environment):
         Returns:
             MarkovDecisionProcess: MDP representation of the grid world
         """
-        n_states = self.get_num_states()
-        n_actions = self.get_num_actions()
+        n_states = self.get_n_states()
+        n_actions = self.get_n_actions()
 
         # Create transition and reward matrices
         transition_probs = np.zeros((n_states, n_actions, n_states))

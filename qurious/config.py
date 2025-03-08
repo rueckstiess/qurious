@@ -7,7 +7,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class LoraConfig(BaseSettings):
-    enabled: bool = True
     r: int = 8
     lora_alpha: int = 16
     lora_dropout: float = 0.05
@@ -20,6 +19,7 @@ class ModelConfig(BaseSettings):
     model_config = SettingsConfigDict(env_nested_delimiter="__", nested_model_default_partial_update=True)
 
     base_model: str = "meta-llama/Llama-3.2-3B-Instruct"
+    lora_enabled: bool = True
     lora_config: LoraConfig = Field(default_factory=LoraConfig)
     device: str = "auto"
 

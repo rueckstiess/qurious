@@ -87,7 +87,7 @@ class Environment:
         return self._done
 
     @property
-    def num_states(self):
+    def n_states(self):
         """
         Get the total number of states in the environment.
 
@@ -97,7 +97,7 @@ class Environment:
         return len(self.state_space)
 
     @property
-    def num_actions(self):
+    def n_actions(self):
         """
         Get the number of possible actions.
 

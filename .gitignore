@@ -7,8 +7,10 @@ __pycache__
 *_adapter*
 results/
 outputs/
+checkpoints/
 adapters/
 logs/
 models/
 wandb/
 *.egg-info
+.coverage

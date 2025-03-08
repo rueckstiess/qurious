@@ -46,7 +46,7 @@ class LoraManager:
         self.adapters: Dict[str, PeftModel] = {}
 
         # Create default adapter if LoRA is enabled
-        if self.lora_config.enabled:
+        if self.config.model.lora_enabled:
             self._create_default_adapter()
 
     def _resolve_device(self, device_str: str) -> torch.device:
@@ -71,7 +71,10 @@ class LoraManager:
 
     def _load_tokenizer(self) -> PreTrainedTokenizer:
         """Load the tokenizer associated with the model."""
-        return AutoTokenizer.from_pretrained(self.base_name)
+        tokenizer = AutoTokenizer.from_pretrained(self.base_name)
+        tokenizer.pad_token = tokenizer.eos_token
+        tokenizer.padding_side = "left"
+        return tokenizer
 
     def _create_peft_config(self) -> PeftLoraConfig:
         """Convert our LoraConfig to PEFT's LoraConfig."""
