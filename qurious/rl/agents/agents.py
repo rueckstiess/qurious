@@ -1,7 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
+from ..environments import Environment
 from ..experience import Experience, Transition
+from ..policies import DeterministicTabularPolicy, EpsilonGreedyPolicy
+from ..value_fns import TabularActionValueFunction
 
 
 class Agent(ABC):
@@ -11,9 +14,12 @@ class Agent(ABC):
     An agent interacts with an environment by choosing actions and learning from experience.
     """
 
-    def __init__(self):
+    def __init__(self, track_experience: bool = True, enable_logging: bool = False, capacity: Optional[int] = None):
         """Initialize an agent."""
-        self.experience = None  # Will be None by default
+        if track_experience:
+            self.track_experience(True, enable_logging, capacity)
+        else:
+            self.track_experience(False)
 
     @abstractmethod
     def choose_action(self, state):
@@ -29,7 +35,7 @@ class Agent(ABC):
         pass
 
     @abstractmethod
-    def learn(self, experience):
+    def learn(self, experience: Any):
         """
         Update the agent's policy and/or value function based on experience.
 
@@ -44,18 +50,19 @@ class Agent(ABC):
         """Reset the agent's internal state (e.g., for a new episode)."""
         pass
 
-    def enable_experience_tracking(self, capacity: Optional[int] = None, enable_logging: bool = False) -> None:
+    def track_experience(self, enabled: bool, enable_logging: bool = False, capacity: Optional[int] = None) -> None:
         """
-        Enable experience tracking for the agent.
+        Enable or disable experience tracking.
 
         Args:
-            capacity: Maximum number of transitions to store (None for unlimited)
+            enabled (bool): Whether to track experience
+            enable_logging (bool): Whether to log transitions when added
+            capacity (int, optional): Maximum number of transitions to store
         """
-        self.experience = Experience(capacity, enable_logging)
-
-    def disable_experience_tracking(self) -> None:
-        """Disable experience tracking."""
-        self.experience = None
+        if enabled:
+            self.experience = Experience(enable_logging=enable_logging, capacity=capacity)
+        else:
+            self.experience = None
 
     def store_experience(self, state, action, reward, next_state, done) -> None:
         """
@@ -80,15 +87,22 @@ class TabularAgent(Agent):
     This agent maintains a policy and optionally state and/or action value functions.
     """
 
-    def __init__(self, policy, value_function=None):
+    def __init__(
+        self,
+        policy,
+        value_function=None,
+        enable_logging: bool = False,
+    ):
         """
         Initialize a tabular agent.
 
         Args:
             policy (Policy): The agent's policy
             value_function (ValueFunction, optional): The agent's value function
+            enable_logging (bool): Whether to log transitions when added
         """
-        super().__init__()
+        # Tabular agents always track experience
+        super().__init__(track_experience=True, enable_logging=enable_logging)
         self.policy = policy
         self.value_function = value_function
 
@@ -104,7 +118,7 @@ class TabularAgent(Agent):
         """
         return self.policy.get_action(state)
 
-    def learn(self, experience):
+    def learn(self, experience: Any):
         """
         Base implementation of learning method.
 
@@ -115,13 +129,16 @@ class TabularAgent(Agent):
         """
         pass
 
-    def reset(self):
+    def reset(self, clear_experience: bool = False):
         """Reset agent's internal state."""
         if hasattr(self.policy, "reset"):
             self.policy.reset()
 
         if self.value_function is not None and hasattr(self.value_function, "reset"):
             self.value_function.reset()
+
+        if clear_experience and self.experience is not None:
+            self.experience.clear()
 
 
 class ValueBasedAgent(TabularAgent):
@@ -131,7 +148,13 @@ class ValueBasedAgent(TabularAgent):
     This includes agents implementing Q-learning, SARSA, Expected SARSA, etc.
     """
 
-    def __init__(self, policy, action_value_function, gamma=0.99):
+    def __init__(
+        self,
+        policy,
+        action_value_function,
+        gamma=0.99,
+        enable_logging: bool = False,
+    ):
         """
         Initialize a value-based agent.
 
@@ -139,14 +162,75 @@ class ValueBasedAgent(TabularAgent):
             policy (Policy): The agent's policy (typically epsilon-greedy or derived from Q)
             action_value_function (ActionValueFunction): The agent's Q-function
             gamma (float, optional): Discount factor for future rewards
+            enable_logging (bool): Whether to log transitions when added
         """
-        super().__init__(policy, action_value_function)
+
+        super().__init__(policy, action_value_function, enable_logging=enable_logging)
         self.Q = action_value_function  # Alias for clarity
         self.gamma = gamma
 
-    def learn(self, transition: Transition | Tuple):
+    @classmethod
+    def from_env(cls, env: Environment, **kwargs):
+        """
+        Create a default ValueBasedAgent with a simple epsilon-greedy policy and Q-function.
+
+        Args:
+            env (Environment): The environment to create the agent for
+            **kwargs: Additional parameters for the agent
+                - epsilon (float): Initial exploration rate for epsilon-greedy policy
+                - decay_rate (float): Rate at which to decay epsilon
+                - gamma (float): Discount factor for future rewards for the Q-function
+                - enable_logging (bool): Whether to log transitions when added
+
+        Returns:
+            ValueBasedAgent: A new agent instance with default components
+        """
+
+        # Q-function
+        q_function = TabularActionValueFunction(env.num_states, env.num_actions)
+
+        # Base policy (will be updated based on Q-values)
+        base_policy = DeterministicTabularPolicy(env.num_states, env.num_actions)
+
+        # Epsilon-greedy exploration policy
+        epsilon = kwargs.pop("epsilon", 0.5)
+        decay_rate = kwargs.pop("decay_rate", 0.99)
+        policy = EpsilonGreedyPolicy(base_policy, epsilon=epsilon, decay_rate=decay_rate)
+
+        # return agent of the class
+        gamma = kwargs.pop("gamma", 0.99)
+        enable_logging = kwargs.pop("enable_logging", False)
+        return cls(policy, q_function, gamma=gamma, enable_logging=enable_logging)
+
+    def _get_transition_tuple(self, transition: Optional[Transition | Tuple] = None) -> Tuple:
+        """
+        Convert a Transition object to a tuple if necessary. If no transition is provided,
+        it retrieves the last transition from the experience buffer.
+
+        Args:
+            transition (Transition | tuple): Transition object or tuple
+
+        Returns:
+            Tuple: Transition as a tuple
+        """
+        # if no transition provided, use the last transition from experience
+        if transition is None:
+            if self.experience is None:
+                raise ValueError("No experience buffer available for learning and no transition provided.")
+            if len(self.experience) == 0:
+                raise ValueError("Experience buffer is empty.")
+            transition = self.experience.get_current_transition()
+
+        if isinstance(transition, Transition):
+            transition = transition.as_tuple()
+
+        return transition
+
+    def learn(self, transition: Optional[Transition | Tuple] = None):
         """
         Update the agent's value function and policy based on a transition.
+        If no transition is provided, it will use the last stored transition
+        in the experience buffer.
 
         For value-based methods, this implements the core TD update.
         Specific algorithms like Q-learning or SARSA should override this.
@@ -154,9 +238,7 @@ class ValueBasedAgent(TabularAgent):
         Args:
             transition (Transition | tuple): (state, action, reward, next_state, done)
         """
-        if isinstance(transition, Transition):
-            transition = transition.as_tuple()
-        state, action, reward, next_state, done = transition
+        state, action, reward, next_state, done = self._get_transition_tuple(transition)
 
         # This is a default TD update - specific algorithms will override this
         if done:
@@ -180,16 +262,14 @@ class QLearningAgent(ValueBasedAgent):
     Q-learning uses the maximum Q-value for the next state regardless of the policy.
     """
 
-    def learn(self, transition):
+    def learn(self, transition: Optional[Transition | Tuple] = None):
         """
         Implement Q-learning update.
 
         Args:
             transition (tuple): (state, action, reward, next_state, done)
         """
-        if isinstance(transition, Transition):
-            transition = transition.as_tuple()
-        state, action, reward, next_state, done = transition
+        state, action, reward, next_state, done = self._get_transition_tuple(transition)
 
         if done:
             target = reward
@@ -211,12 +291,12 @@ class SarsaAgent(ValueBasedAgent):
     SARSA uses the actual next action from the policy.
     """
 
-    def learn(self, transition):
+    def learn(self, transition: Optional[Transition | Tuple] = None):
         """
         Implement SARSA update.
 
         Args:
-            transition (tuple): (state, action, reward, next_state, done)
+            transition (Transition | tuple): (state, action, reward, next_state, done)
         """
         # SARSA exactly matches the default implementation in ValueBasedAgent
         super().learn(transition)
@@ -229,16 +309,14 @@ class ExpectedSarsaAgent(ValueBasedAgent):
     Expected SARSA uses the expected value of the next state under the current policy.
     """
 
-    def learn(self, transition):
+    def learn(self, transition: Optional[Transition | Tuple] = None):
         """
         Implement Expected SARSA update.
 
         Args:
             transition (tuple): (state, action, reward, next_state, done)
         """
-        if isinstance(transition, Transition):
-            transition = transition.as_tuple()
-        state, action, reward, next_state, done = transition
+        state, action, reward, next_state, done = self._get_transition_tuple(transition)
 
         if done:
             target = reward

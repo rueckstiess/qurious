@@ -1,6 +1,6 @@
 import unittest
 
-from qurious.rl.agents import QLearningAgent, TabularAgent, ValueBasedAgent
+from qurious.rl.agents import Agent, QLearningAgent, TabularAgent, ValueBasedAgent
 from qurious.rl.policies.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
 from qurious.rl.value_fns import TabularActionValueFunction
 
@@ -147,6 +147,155 @@ class TestQLearningAgent(unittest.TestCase):
         # = 1.0 + 0.1 * (2.8 - 1.0) = 1.0 + 0.18 = 1.18
         expected_new_value = 1.0 + 0.1 * (1.0 + 0.9 * 2.0 - 1.0)
         self.assertAlmostEqual(self.value_function.estimate(0, 0), expected_new_value)
+
+
+class TestAgent(unittest.TestCase):
+    """Test the abstract Agent class functionality."""
+
+    def test_agent_is_abstract(self):
+        """Test that Agent cannot be instantiated directly."""
+        # Should raise TypeError due to abstract methods
+        with self.assertRaises(TypeError):
+            Agent()
+
+    def test_track_experience_enabled(self):
+        """Test enabling experience tracking."""
+
+        # Create a concrete implementation for testing
+        class ConcreteAgent(Agent):
+            def choose_action(self, state):
+                return 0
+
+            def learn(self, experience):
+                pass
+
+            def reset(self):
+                pass
+
+        agent = ConcreteAgent(track_experience=True)
+        self.assertIsNotNone(agent.experience)
+        self.assertFalse(agent.experience.enable_logging)
+        self.assertIsNone(agent.experience.capacity)
+
+        # Test with specific capacity and logging disabled
+        agent = ConcreteAgent(track_experience=True, enable_logging=False, capacity=100)
+        self.assertIsNotNone(agent.experience)
+        self.assertFalse(agent.experience.enable_logging)
+        self.assertEqual(agent.experience.capacity, 100)
+
+    def test_track_experience_disabled(self):
+        """Test disabling experience tracking."""
+
+        class ConcreteAgent(Agent):
+            def choose_action(self, state):
+                return 0
+
+            def learn(self, experience):
+                pass
+
+            def reset(self):
+                pass
+
+        agent = ConcreteAgent(track_experience=False)
+        self.assertIsNone(agent.experience)
+
+    def test_track_experience_toggle(self):
+        """Test toggling experience tracking on and off."""
+
+        class ConcreteAgent(Agent):
+            def choose_action(self, state):
+                return 0
+
+            def learn(self, experience):
+                pass
+
+            def reset(self):
+                pass
+
+        agent = ConcreteAgent(track_experience=False)
+        self.assertIsNone(agent.experience)
+
+        # Enable tracking
+        agent.track_experience(True)
+        self.assertIsNotNone(agent.experience)
+
+        # Disable tracking
+        agent.track_experience(False)
+        self.assertIsNone(agent.experience)
+
+    def test_store_experience(self):
+        """Test storing transitions in experience buffer."""
+
+        class ConcreteAgent(Agent):
+            def choose_action(self, state):
+                return 0
+
+            def learn(self, experience):
+                pass
+
+            def reset(self):
+                pass
+
+        # Create agent with experience tracking
+        agent = ConcreteAgent(track_experience=True)
+
+        # Store a transition
+        agent.store_experience(0, 1, 2.0, 3, False)
+
+        # Check that it was stored
+        self.assertEqual(len(agent.experience), 1)
+        transition = agent.experience.buffer[0]
+        self.assertEqual(transition.state, 0)
+        self.assertEqual(transition.action, 1)
+        self.assertEqual(transition.reward, 2.0)
+        self.assertEqual(transition.next_state, 3)
+        self.assertEqual(transition.done, False)
+
+    def test_store_experience_disabled(self):
+        """Test that storing experience has no effect when tracking is disabled."""
+
+        class ConcreteAgent(Agent):
+            def choose_action(self, state):
+                return 0
+
+            def learn(self, experience):
+                pass
+
+            def reset(self):
+                pass
+
+        # Create agent without experience tracking
+        agent = ConcreteAgent(track_experience=False)
+
+        # Store a transition (should have no effect)
+        agent.store_experience(0, 1, 2.0, 3, False)
+        self.assertIsNone(agent.experience)
+
+    def test_experience_capacity(self):
+        """Test that experience buffer respects capacity limits."""
+
+        class ConcreteAgent(Agent):
+            def choose_action(self, state):
+                return 0
+
+            def learn(self, experience):
+                pass
+
+            def reset(self):
+                pass
+
+        # Create agent with limited capacity
+        agent = ConcreteAgent(track_experience=True, capacity=2)
+
+        # Store transitions
+        agent.store_experience(0, 0, 1.0, 1, False)
+        agent.store_experience(1, 0, 2.0, 2, False)
+        agent.store_experience(2, 1, 3.0, 3, False)
+
+        # Should only keep the last 2 transitions
+        self.assertEqual(len(agent.experience), 2)
+        self.assertEqual(agent.experience.buffer[0].state, 1)
+        self.assertEqual(agent.experience.buffer[1].state, 2)
 
 
 if __name__ == "__main__":
