@@ -4,7 +4,7 @@ __pycache__
 *.pyc
 .DS_Store
 .pytest_cache
-*_adapter*
+*_adapter
 results/
 outputs/
 checkpoints/
