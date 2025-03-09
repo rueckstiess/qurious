@@ -122,12 +122,7 @@ def run_actions_in_env(example, numeric_actions):
             break
 
     # check if goal was reached
-    solved = env.position == tuple(env.goal_pos[0])
-
-    # calculate manhatten distance to goal
-    distance_to_goal = abs(env.position[0] - env.goal_pos[0][0]) + abs(env.position[1] - env.goal_pos[0][1])
-
-    return solved, distance_to_goal
+    return env.position == tuple(env.goal_pos[0])
 
 
 def calculate_accuracy(test_data, predictions):
@@ -143,21 +138,18 @@ def calculate_accuracy(test_data, predictions):
     """
 
     correct = 0
-    avg_distance = 0
 
     for example, prediction in zip(test_data, predictions):
         # Extract actions from model response
         _, numeric_actions = extract_actions_from_responses(prediction)
 
         # Run actions in environment
-        solved, distance = run_actions_in_env(example, numeric_actions)
+        solved = run_actions_in_env(example, numeric_actions)
         if solved:
             correct += 1
-        avg_distance += distance
 
-    avg_distance /= len(test_data)
     accuracy = correct / len(test_data)
-    return accuracy, avg_distance
+    return accuracy
 
 
 def print_predictions(preds, examples, num_examples=10):
@@ -177,12 +169,12 @@ def evaluate_model(model, tokenizer, test_dataset, max_samples=None, batch_size=
     predictions = []
 
     # Sample test data
-    if max_samples is not None and len(test_dataset) > max_samples:
+    if max_samples is not None:
         test_dataset = test_dataset.shuffle().select(range(max_samples))
 
-    print(f"\nEvaluating {len(test_dataset)} rollouts...")
+    print(f"\nEvaluating {len(test_dataset)} samples...")
     # Process test data in batches, use tqdm for progress bar
-    for i in tqdm(range(0, len(test_dataset), batch_size)):
+    for i in tqdm(range(0, len(test_dataset), batch_size), desc="Evaluating"):
         batch = test_dataset.select(range(i, min(len(test_dataset), i + batch_size)))
         batch_prompts = []
 
@@ -223,7 +215,7 @@ def evaluate_model(model, tokenizer, test_dataset, max_samples=None, batch_size=
             predictions.append(prediction)
 
     # Calculate and return accuracy
-    accuracy, distance = calculate_accuracy(test_dataset, predictions)
+    accuracy = calculate_accuracy(test_dataset, predictions)
     print_predictions(predictions, test_dataset)
 
-    return accuracy, distance, predictions
+    return accuracy, predictions

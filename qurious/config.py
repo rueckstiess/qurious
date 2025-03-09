@@ -32,6 +32,8 @@ class TrainingConfig(BaseSettings):
     log_interval: int = 10
     eval_interval: int = 100
     save_interval: int = 1000
+    max_grad_norm: float = 1.0
+    scheduler_step_per_batch: bool = False
 
 
 class PathConfig(BaseSettings):

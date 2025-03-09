@@ -3,8 +3,8 @@ from typing import Callable, Optional
 import torch
 from torch import nn
 
-from qurious.llms.utils import auto_device
 from qurious.rl.policies.policy import DiscretePolicy
+from qurious.utils import auto_device
 
 
 class DiscreteNNPolicy(DiscretePolicy):
