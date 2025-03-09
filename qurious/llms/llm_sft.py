@@ -1,7 +1,6 @@
 from transformers import (
     DataCollatorForLanguageModeling,
     Trainer,
-    TrainerCallback,
     TrainingArguments,
 )
 
