@@ -7,33 +7,32 @@ from transformers import (
 
 from qurious.config import Config
 from qurious.llms.lora_manager import LoraManager
-
-from .utils import evaluate_model, load_dataset
+from qurious.llms.utils import evaluate_model, load_dataset
 
 config = Config()
 
 
-class CustomEvaluationCallback(TrainerCallback):
-    def __init__(self, model, tokenizer, eval_dataset, batch_size):
-        self.model = model
-        self.tokenizer = tokenizer
-        self.test_data = eval_dataset
-        self.batch_size = batch_size
-        self.best_accuracy = 0.0
+# class CustomEvaluationCallback(TrainerCallback):
+#     def __init__(self, model, tokenizer, eval_dataset, batch_size):
+#         self.model = model
+#         self.tokenizer = tokenizer
+#         self.test_data = eval_dataset
+#         self.batch_size = batch_size
+#         self.best_accuracy = 0.0
 
-    def on_evaluate(self, args, state, control, metrics=None, **kwargs):
-        # This runs after the trainer's built-in evaluation
-        accuracy, preds = evaluate_model(
-            self.model, self.tokenizer, self.test_data, max_samples=config.max_eval_samples, batch_size=self.batch_size
-        )
-        print(f"\nEvaluation - Step {state.global_step}, Accuracy: {accuracy:.4f}")
+#     def on_evaluate(self, args, state, control, metrics=None, **kwargs):
+#         # This runs after the trainer's built-in evaluation
+#         accuracy, preds = evaluate_model(
+#             self.model, self.tokenizer, self.test_data, max_samples=config.max_eval_samples, batch_size=self.batch_size
+#         )
+#         print(f"\nEvaluation - Step {state.global_step}, Accuracy: {accuracy:.4f}")
 
-        # Add custom metrics to logs (will be combined with Trainer's metrics)
-        if metrics is not None:
-            metrics["accuracy"] = accuracy
+#         # Add custom metrics to logs (will be combined with Trainer's metrics)
+#         if metrics is not None:
+#             metrics["accuracy"] = accuracy
 
-        # Return the control object
-        return control
+#         # Return the control object
+#         return control
 
 
 def main():

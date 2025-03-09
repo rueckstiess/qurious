@@ -12,12 +12,12 @@ from trl import GRPOConfig, GRPOTrainer, apply_chat_template
 
 from qurious.llms.config import Config
 from qurious.llms.utils import (
-    auto_device,
     evaluate_model,
     extract_actions_from_responses,
     load_dataset,
     run_actions_in_env,
 )
+from qurious.utils import auto_device
 
 config = Config()
 

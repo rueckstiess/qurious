@@ -60,22 +60,6 @@ def load_dataset(*args, **kwargs) -> Dataset:
         return hf_load_dataset(*args, **kwargs)
 
 
-def auto_device():
-    """
-    Automatically selects the device for PyTorch based on availability of CUDA or MPS.
-    Returns:
-        torch.device: The selected device (either "cuda", "mps", or "cpu").
-    """
-    if torch.backends.mps.is_available():
-        device = torch.device("mps")
-    elif torch.cuda.is_available():
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
-    print(f"using device: {device}")
-    return device
-
-
 def extract_actions_from_responses(response):
     """
     Extract actions (up, down, left, right) from model responses.

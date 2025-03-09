@@ -14,8 +14,7 @@ from peft import (
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
 
 from qurious.config import Config
-
-from .utils import auto_device
+from qurious.utils import auto_device
 
 
 class LoraManager:

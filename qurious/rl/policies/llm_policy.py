@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from qurious.llms.utils import auto_device
+from qurious.utils import auto_device
 
 from .policy import Policy
 
