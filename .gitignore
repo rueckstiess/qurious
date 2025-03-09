@@ -14,3 +14,5 @@ models/
 wandb/
 *.egg-info
 .coverage
+mlruns/
+mlartifacts/

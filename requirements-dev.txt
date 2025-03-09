@@ -1,4 +1,6 @@
 pytest>=7.0.0
 ipython>=8.0.0
 skypilot[aws,gcp,lambda]==0.8.0
+mlflow==2.20.3
+setproctitle==1.2
 pymongo>=4.8.0
