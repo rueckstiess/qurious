@@ -34,6 +34,18 @@ class EpsilonGreedyPolicy(DiscretePolicy):
         """Get current epsilon value."""
         return self._epsilon
 
+    @epsilon.setter
+    def epsilon(self, value):
+        """
+        Set a new epsilon value.
+
+        Args:
+            value (float): New epsilon value
+        """
+        if not (0 <= value <= 1):
+            raise ValueError("Epsilon must be between 0 and 1.")
+        self._epsilon = value
+
     def decay_epsilon(self):
         """
         Decay the epsilon value if decay_rate is set.

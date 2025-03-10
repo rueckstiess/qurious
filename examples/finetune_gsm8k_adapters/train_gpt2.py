@@ -63,7 +63,7 @@ def train_lora_adapter():
     trainer = Trainer(
         model=model,
         loss_fn=loss_fn,
-        config=config.training,
+        config=config,
     )
 
     print("Before Training", trainer.evaluate(eval_dataloader))
@@ -100,7 +100,7 @@ def train_base_model():
         model=model,
         optimizer=optimizer,
         loss_fn=loss_fn,
-        config=config.training,
+        config=config,
         scheduler=scheduler,
     )
 

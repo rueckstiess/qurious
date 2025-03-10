@@ -5,38 +5,14 @@ from datasets import Dataset
 
 from qurious.rl.agents import SarsaAgent
 from qurious.rl.environments.grid_world import make_grid_world
-from qurious.rl.policy import DeterministicTabularPolicy, EpsilonGreedyPolicy
 from qurious.rl.utils import run_agent, train_agent
-from qurious.rl.value_fns import TabularActionValueFunction
 from qurious.visualization import AgentLayer, GridLayer, GridWorldVisualizer
 
 GRIDWORLD_SYSTEM_PROMPT = """You are an expert in navigating grid world environments. You will be given a \
-grid world environment and you need to find the optimal path from the agent position to the goal position. \
-The grid world is represented as a 2D array, where . represents an empty cell, # represents an obstacle, A \
+grid world environment and you need to find a path from the agent position to the goal position. \
+The grid world is represented as a 2D ASCII representation, where . represents an empty cell, # represents an obstacle, A \
 represents the agent and G represents the goal. You can move up, down, left, or right. Your task is to provide \
 a sequence of comma-separated actions (up, down, left, right) that lead to the goal. Do not include any other text."""
-
-
-def create_agent(env):
-    # Create agent components
-    n_states = env.get_n_states()
-    n_actions = env.get_n_actions()
-
-    # Q-function
-    q_function = TabularActionValueFunction(n_states, n_actions)
-
-    # Base policy (will be updated based on Q-values)
-    base_policy = DeterministicTabularPolicy(n_states, n_actions)
-
-    # Epsilon-greedy exploration policy
-    epsilon = 0.5
-    policy = EpsilonGreedyPolicy(base_policy, epsilon, decay_rate=0.99)
-
-    # Create agent
-    agent = SarsaAgent(policy, q_function, gamma=0.99)
-    agent.enable_experience_tracking()
-
-    return agent
 
 
 def collect_trajectory(env, agent):
@@ -60,7 +36,7 @@ def collect_trajectory(env, agent):
     }
 
     numeric_actions = [int(transition.action) for transition in agent.experience]
-    actions = ", ".join([action_strs[a] for a in numeric_actions])
+    actions = " ".join([action_strs[a] for a in numeric_actions])
 
     print(env_ascii)
     if env.index_to_state(agent.experience.get_current_transition().next_state) not in env.goal_pos:
@@ -82,7 +58,7 @@ def collect_trajectory(env, agent):
     return trajectory
 
 
-def create_dataset(instances):
+def create_dataset(instances, chat_format=False, include_system_prompt=False):
     """Create a dataset from the given instances.
     Args:
         instances: List of instances
@@ -91,17 +67,49 @@ def create_dataset(instances):
         DatasetDict
     """
 
-    instances = [
-        {
-            "messages": [
-                {"role": "system", "content": GRIDWORLD_SYSTEM_PROMPT},
-                {"role": "user", "content": instance["env"]},
-                {"role": "assistant", "content": instance["actions"]},
-            ],
-            **instance,
-        }
-        for instance in instances
-    ]
+    if chat_format:
+        if include_system_prompt:
+            instances = [
+                {
+                    "messages": [
+                        {"role": "system", "content": GRIDWORLD_SYSTEM_PROMPT},
+                        {"role": "user", "content": instance["env"]},
+                        {"role": "assistant", "content": instance["actions"]},
+                    ],
+                    **instance,
+                }
+                for instance in instances
+            ]
+        else:
+            instances = [
+                {
+                    "messages": [
+                        {"role": "user", "content": instance["env"]},
+                        {"role": "assistant", "content": instance["actions"]},
+                    ],
+                    **instance,
+                }
+                for instance in instances
+            ]
+    else:
+        if include_system_prompt:
+            instances = [
+                {
+                    "prompt": f"{GRIDWORLD_SYSTEM_PROMPT}\n\nGrid World:\n{instance['env']}\nActions:\n",
+                    "response": instance["actions"],
+                    **instance,
+                }
+                for instance in instances
+            ]
+        else:
+            instances = [
+                {
+                    "prompt": f"Grid World:\n{instance['env']}\nActions:\n",
+                    "response": instance["actions"],
+                    **instance,
+                }
+                for instance in instances
+            ]
 
     dataset = Dataset.from_list(instances)
     return dataset
@@ -110,9 +118,11 @@ def create_dataset(instances):
 def main():
     parser = argparse.ArgumentParser(description="Generate grid world instances")
     parser.add_argument("--output", "-o", type=str, default="grid_world.jsonl", help="output file")
+    parser.add_argument("--chat-format", "-c", action="store_true", help="use chat format")
     parser.add_argument("--num-instances", "-n", type=int, default=10, help="number of instances to generate")
     parser.add_argument("--min-grid-size", "-i", type=int, default=5, help="minimum grid size")
     parser.add_argument("--max-grid-size", "-a", type=int, default=10, help="maximum grid size")
+    parser.add_argument("--include-system-prompt", "-s", action="store_true", help="include system prompt in dataset")
     args = parser.parse_args()
 
     all_trajectories = []
@@ -122,18 +132,20 @@ def main():
         # Generate random grid size
         size = random.randint(args.min_grid_size, args.max_grid_size)
         env = make_grid_world(size=size)
-        agent = create_agent(env)
+        agent = SarsaAgent.from_env(env)
 
         train_agent(env, agent, num_episodes=2000)
 
         # switch to greedy policy
-        agent.policy = agent.policy.base_policy
+        agent.policy.epsilon = 0.0
 
         trajectory = collect_trajectory(env, agent)
         if trajectory:
             all_trajectories.append(trajectory)
 
-    dataset = create_dataset(all_trajectories)
+    dataset = create_dataset(
+        all_trajectories, chat_format=args.chat_format, include_system_prompt=args.include_system_prompt
+    )
 
     # save trajectories as json file
     dataset.to_json(args.output)

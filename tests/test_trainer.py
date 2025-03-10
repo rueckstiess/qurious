@@ -232,8 +232,8 @@ class TestTrainer:
 
         result = trainer.train_step(batch)
 
-        assert "loss" in result
-        assert isinstance(result["loss"], float)
+        assert "train_loss" in result
+        assert isinstance(result["train_loss"], float)
 
     def test_eval_step(self, model, loss_fn, config):
         """Test a single evaluation step."""
@@ -246,8 +246,8 @@ class TestTrainer:
 
         result = trainer.eval_step(batch)
 
-        assert "loss" in result
-        assert isinstance(result["loss"], float)
+        assert "eval_loss" in result
+        assert isinstance(result["eval_loss"], float)
 
     def test_train_epoch(self, model, loss_fn, dataloader, config):
         """Test training for one epoch."""
@@ -275,8 +275,8 @@ class TestTrainer:
 
         metrics = trainer.evaluate(dataloader)
 
-        assert "loss" in metrics
-        assert isinstance(metrics["loss"], float)
+        assert "eval_loss" in metrics
+        assert isinstance(metrics["eval_loss"], float)
 
     def test_train(self, model, loss_fn, dataloader, config, tmp_path):
         """Test full training loop."""
@@ -403,9 +403,9 @@ class TestTrainer:
         def mock_evaluate(dataloader):
             nonlocal eval_counter
             if eval_counter == 0:
-                result = {"loss": 0.5}
+                result = {"train_loss": 0.5}
             else:
-                result = {"loss": 0.6}  # Worse loss, should trigger early stopping
+                result = {"train_loss": 0.6}  # Worse loss, should trigger early stopping
             eval_counter += 1
             return result
 

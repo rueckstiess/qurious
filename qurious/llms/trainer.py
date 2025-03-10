@@ -15,14 +15,6 @@ from qurious.utils import auto_device
 class Trainer:
     """
     Generic PyTorch model trainer that supports various architectures and loss functions.
-
-    Attributes:
-        model: The PyTorch model to train.
-        optimizer: The optimizer used for training.
-        loss_fn: The loss function.
-        device: The device to run training on (auto-detected if not provided).
-        config: Configuration object for training parameters.
-        scheduler: Optional learning rate scheduler.
     """
 
     def __init__(
@@ -47,6 +39,9 @@ class Trainer:
             device: Device to run training on (if None, auto-detected)
             config: Configuration object containing training parameters
             scheduler: Optional learning rate scheduler
+            loggers: List of loggers to use (e.g., "console", "mlflow")
+            experiment_name: Name of the MLFlow experiment
+            run_name: Name of the MLFlow run
         """
         self.model = model
         self.config = config
@@ -66,14 +61,20 @@ class Trainer:
         self.scheduler = scheduler
         self.loggers = loggers
 
+        self.step = 0
+        self.epoch = 0
+
         if experiment_name is None:
             experiment_name = f"Experiment {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
         self.experiment_name = experiment_name
 
         # set up mlflow logging if specified
         if "mlflow" in self.loggers:
+            mlflow.set_tracking_uri("http://127.0.0.1:5000")
             mlflow.set_experiment(experiment_name)
             mlflow.start_run(run_name=run_name)
+            mlflow.log_params(self.config.to_flat_dict())
+            print(f"MLFlow experiment '{experiment_name}' started with run name '{mlflow.active_run().info.run_name}'")
 
         # Move model to the appropriate device
         self.model.to(self.device)
@@ -172,26 +173,39 @@ class Trainer:
         # Otherwise use the provided loss function
         return self.loss_fn(outputs, targets)
 
-    def _log_metrics(self, metrics: Dict[str, float], step: int) -> None:
+    def _log_metrics(self, metrics: Dict[str, float]) -> None:
         """
         Log metrics to MLFlow and/or to the console.
-        If self.loggers contains a callable, it will be called with (self, metrics, step).
+        If self.loggers contains a callable, it will be called with (self, metrics, epoch, step).
 
         Args:
             metrics: Dictionary of metrics to log
             step: Current training step
         """
+
+        def format_metric(name, value):
+            if name in ["lr", "learning_rate"]:
+                return f"{name}: {value:.2e}"
+            elif isinstance(value, int):
+                return f"{name}: {value}"
+            elif "acc" in name:
+                return f"{name}: {value:.2%}"
+            elif isinstance(value, float):
+                return f"{name}: {value:.4f}"
+            else:
+                return f"{name}: {value}"
+
         if "console" in self.loggers:
-            metrics_str = ", ".join([f"{k}: {v:.4f}" for k, v in metrics.items()])
-            self.logger.info(f"Step {step}: {metrics_str}")
+            metrics_str = ", ".join([f"{format_metric(k, v)}" for k, v in metrics.items()])
+            self.logger.info(f"step {self.step}: {metrics_str}")
 
         if "mlflow" in self.loggers:
-            mlflow.log_metrics(metrics, step=step)
+            mlflow.log_metrics(metrics, step=self.step)
 
         # Call any custom logger functions
         logger_fns = [logger for logger in self.loggers if isinstance(logger, Callable)]
         for logger_fn in logger_fns:
-            logger_fn(self, metrics, step)
+            logger_fn(self, metrics, self.epoch, self.step)
 
     def train_step(self, batch: Any) -> Dict[str, float]:
         """
@@ -229,7 +243,8 @@ class Trainer:
         ):
             self.scheduler.step()
 
-        return {"loss": loss.item()}
+        self.step += 1
+        return {"train_loss": loss.item()}
 
     def eval_step(self, batch: Any) -> Dict[str, float]:
         """
@@ -251,7 +266,7 @@ class Trainer:
             # Compute loss
             loss = self._compute_loss(outputs, targets)
 
-        return {"loss": loss.item()}
+        return {"eval_loss": loss.item()}
 
     def train_epoch(
         self, train_dataloader: DataLoader, eval_dataloader: Optional[DataLoader] = None, epoch: int = 0
@@ -274,8 +289,8 @@ class Trainer:
 
         pbar = tqdm(train_dataloader, desc=f"Epoch {epoch + 1}")
         for batch in pbar:
-            step_result = self.train_step(batch)
-            train_loss += step_result["loss"]
+            step_metrics = self.train_step(batch)
+            train_loss += step_metrics["train_loss"]
             train_steps += 1
 
             # log metrics every log_interval steps
@@ -283,17 +298,18 @@ class Trainer:
                 self._log_metrics({"train_loss": step_result["loss"]}, train_steps)
 
             # Update progress bar with current loss
-            pbar.set_postfix(loss=f"{step_result['loss']:.4f}")
+            pbar.set_postfix(loss=f"{step_metrics['train_loss']:.4f}")
 
         # Calculate average training loss
         avg_train_loss = train_loss / train_steps if train_steps > 0 else 0
-        metrics = {"train_loss": avg_train_loss}
+        epoch_metrics = {"train_loss": avg_train_loss}
 
         # Evaluation phase
         if eval_dataloader is not None:
             eval_metrics = self.evaluate(eval_dataloader)
-            metrics.update({f"eval_{k}": v for k, v in eval_metrics.items()})
-            self._log_metrics(eval_metrics, train_steps)
+            epoch_metrics.update(eval_metrics)
+            epoch_metrics["epoch"] = self.epoch
+            self._log_metrics(eval_metrics)
 
         # Update learning rate scheduler if it steps per epoch
         if self.scheduler is not None and not (
@@ -301,11 +317,12 @@ class Trainer:
         ):
             if hasattr(self.scheduler, "step_with_metrics"):
                 # Some schedulers like ReduceLROnPlateau need validation metrics
-                self.scheduler.step(metrics.get("eval_loss", avg_train_loss))
+                self.scheduler.step(epoch_metrics.get("eval_loss", avg_train_loss))
             else:
                 self.scheduler.step()
 
-        return metrics
+        self.epoch += 1
+        return epoch_metrics
 
     def evaluate(self, dataloader: DataLoader) -> Dict[str, float]:
         """
@@ -324,12 +341,12 @@ class Trainer:
         with torch.no_grad():
             for batch in tqdm(dataloader, desc="Evaluation"):
                 step_result = self.eval_step(batch)
-                total_loss += step_result["loss"]
+                total_loss += step_result["eval_loss"]
                 steps += 1
 
         # Calculate average evaluation loss
         avg_loss = total_loss / steps if steps > 0 else 0
-        return {"loss": avg_loss}
+        return {"eval_loss": avg_loss, "epoch": self.epoch}
 
     def _save_checkpoint(self, path: str, epoch: int, metric_value: Optional[float] = None) -> None:
         """
@@ -432,7 +449,8 @@ class Trainer:
         no_improvement_count = 0
 
         self.logger.info(f"Starting training for {num_epochs} epochs")
-
+        self.step = 0
+        self.epoch = 0
         try:
             # Main training loop
             for epoch in range(num_epochs):
@@ -494,7 +512,7 @@ class Trainer:
                     for callback in callbacks:
                         callback(self, epoch, epoch_metrics)
 
-            self.logger.info(f"Training completed. Best {best_model_metric} was at epoch {best_epoch + 1}")
+            self.logger.info(f"Training completed. Best {best_model_metric} was at epoch {best_epoch + 1}.")
 
         except KeyboardInterrupt:
             self.logger.info("Training interrupted.")
