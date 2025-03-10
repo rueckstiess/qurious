@@ -1,7 +1,9 @@
+import datetime
 import logging
 import os
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+import mlflow
 import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
@@ -31,6 +33,9 @@ class Trainer:
         device: Optional[torch.device] = None,
         train_config: TrainingConfig = None,
         scheduler: Optional[Any] = None,
+        loggers: Optional[List[str | Callable]] = ["console"],
+        experiment_name: Optional[str] = None,
+        run_name: Optional[str] = None,
     ):
         """
         Initialize the trainer.
@@ -59,6 +64,16 @@ class Trainer:
 
         self.loss_fn = loss_fn
         self.scheduler = scheduler
+        self.loggers = loggers
+
+        if experiment_name is None:
+            experiment_name = f"Experiment {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        self.experiment_name = experiment_name
+
+        # set up mlflow logging if specified
+        if "mlflow" in self.loggers:
+            mlflow.set_experiment(experiment_name)
+            mlflow.start_run(run_name=run_name)
 
         # Move model to the appropriate device
         self.model.to(self.device)
@@ -157,6 +172,27 @@ class Trainer:
         # Otherwise use the provided loss function
         return self.loss_fn(outputs, targets)
 
+    def _log_metrics(self, metrics: Dict[str, float], step: int) -> None:
+        """
+        Log metrics to MLFlow and/or to the console.
+        If self.loggers contains a callable, it will be called with (self, metrics, step).
+
+        Args:
+            metrics: Dictionary of metrics to log
+            step: Current training step
+        """
+        if "console" in self.loggers:
+            metrics_str = ", ".join([f"{k}: {v:.4f}" for k, v in metrics.items()])
+            self.logger.info(f"Step {step}: {metrics_str}")
+
+        if "mlflow" in self.loggers:
+            mlflow.log_metrics(metrics, step=step)
+
+        # Call any custom logger functions
+        logger_fns = [logger for logger in self.loggers if isinstance(logger, Callable)]
+        for logger_fn in logger_fns:
+            logger_fn(self, metrics, step)
+
     def train_step(self, batch: Any) -> Dict[str, float]:
         """
         Perform a single training step.
@@ -241,6 +277,10 @@ class Trainer:
             train_loss += step_result["loss"]
             train_steps += 1
 
+            # log metrics every log_interval steps
+            if train_steps % self.train_config.log_interval == 0:
+                self._log_metrics({"train_loss": step_result["loss"]}, train_steps)
+
             # Update progress bar with current loss
             pbar.set_postfix(loss=f"{step_result['loss']:.4f}")
 
@@ -252,12 +292,7 @@ class Trainer:
         if eval_dataloader is not None:
             eval_metrics = self.evaluate(eval_dataloader)
             metrics.update({f"eval_{k}": v for k, v in eval_metrics.items()})
-
-            self.logger.info(
-                f"Epoch {epoch + 1}: Train Loss: {avg_train_loss:.4f}, Eval Loss: {eval_metrics['loss']:.4f}"
-            )
-        else:
-            self.logger.info(f"Epoch {epoch + 1}: Train Loss: {avg_train_loss:.4f}")
+            self._log_metrics(eval_metrics, train_steps)
 
         # Update learning rate scheduler if it steps per epoch
         if self.scheduler is not None and not (
@@ -337,69 +372,81 @@ class Trainer:
 
         self.logger.info(f"Starting training for {num_epochs} epochs")
 
-        # Main training loop
-        for epoch in range(num_epochs):
-            # Train for one epoch and collect metrics
-            epoch_metrics = self.train_epoch(train_dataloader, eval_dataloader, epoch)
+        try:
+            # Main training loop
+            for epoch in range(num_epochs):
+                # Train for one epoch and collect metrics
+                epoch_metrics = self.train_epoch(train_dataloader, eval_dataloader, epoch)
 
-            # Update history
-            for key, value in epoch_metrics.items():
-                if key not in history:
-                    history[key] = []
-                history[key].append(value)
+                # Update history
+                for key, value in epoch_metrics.items():
+                    if key not in history:
+                        history[key] = []
+                    history[key].append(value)
 
-            # Check for best model
-            current_metric = epoch_metrics.get(best_model_metric, epoch_metrics.get("train_loss"))
-            is_improvement = False
+                # Check for best model
+                current_metric = epoch_metrics.get(best_model_metric, epoch_metrics.get("train_loss"))
+                is_improvement = False
 
-            if best_model_metric.endswith("loss"):  # Minimize loss
-                if current_metric < best_metric_value:
-                    best_metric_value = current_metric
-                    best_epoch = epoch
-                    is_improvement = True
+                if best_model_metric.endswith("loss"):  # Minimize loss
+                    if current_metric < best_metric_value:
+                        best_metric_value = current_metric
+                        best_epoch = epoch
+                        is_improvement = True
 
-                    # Save best model
-                    if save_dir:
-                        self._save_checkpoint(os.path.join(save_dir, "best_model.pt"), epoch, best_metric_value)
-                        self.logger.info(f"Best model saved at epoch {epoch + 1}")
-            else:  # Maximize other metrics (accuracy, f1, etc.)
-                if current_metric > best_metric_value:
-                    best_metric_value = current_metric
-                    best_epoch = epoch
-                    is_improvement = True
+                        # Save best model
+                        if save_dir:
+                            self._save_checkpoint(os.path.join(save_dir, "best_model.pt"), epoch, best_metric_value)
+                            self.logger.info(f"Best model saved at epoch {epoch + 1}")
+                else:  # Maximize other metrics (accuracy, f1, etc.)
+                    if current_metric > best_metric_value:
+                        best_metric_value = current_metric
+                        best_epoch = epoch
+                        is_improvement = True
 
-                    # Save best model
-                    if save_dir:
-                        self._save_checkpoint(os.path.join(save_dir, "best_model.pt"), epoch, best_metric_value)
-                        self.logger.info(f"Best model saved at epoch {epoch + 1}")
+                        # Save best model
+                        if save_dir:
+                            self._save_checkpoint(os.path.join(save_dir, "best_model.pt"), epoch, best_metric_value)
+                            self.logger.info(f"Best model saved at epoch {epoch + 1}")
 
-            # Regular checkpoint saving
-            if save_dir and save_freq > 0 and (epoch + 1) % save_freq == 0:
-                checkpoint_path = os.path.join(save_dir, f"checkpoint_epoch_{epoch + 1}.pt")
-                self._save_checkpoint(checkpoint_path, epoch)
-                self.logger.info(f"Checkpoint saved at epoch {epoch + 1}")
+                # Regular checkpoint saving
+                if save_dir and save_freq > 0 and (epoch + 1) % save_freq == 0:
+                    checkpoint_path = os.path.join(save_dir, f"checkpoint_epoch_{epoch + 1}.pt")
+                    self._save_checkpoint(checkpoint_path, epoch)
+                    self.logger.info(f"Checkpoint saved at epoch {epoch + 1}")
 
-            # Early stopping check
-            if early_stopping_patience is not None:
-                if is_improvement:
-                    no_improvement_count = 0
-                else:
-                    no_improvement_count += 1
+                # Early stopping check
+                if early_stopping_patience is not None:
+                    if is_improvement:
+                        no_improvement_count = 0
+                    else:
+                        no_improvement_count += 1
 
-                if no_improvement_count >= early_stopping_patience:
-                    self.logger.info(
-                        f"Early stopping triggered after {epoch + 1} epochs. Best epoch was {best_epoch + 1}."
-                    )
-                    break
+                    if no_improvement_count >= early_stopping_patience:
+                        self.logger.info(
+                            f"Early stopping triggered after {epoch + 1} epochs. Best epoch was {best_epoch + 1}."
+                        )
+                        break
 
-            # Execute callbacks
-            if callbacks:
-                for callback in callbacks:
-                    callback(self, epoch, epoch_metrics)
+                # Execute callbacks
+                if callbacks:
+                    for callback in callbacks:
+                        callback(self, epoch, epoch_metrics)
 
-        self.logger.info(f"Training completed. Best {best_model_metric} was at epoch {best_epoch + 1}")
+            self.logger.info(f"Training completed. Best {best_model_metric} was at epoch {best_epoch + 1}")
 
-        return history
+        except KeyboardInterrupt:
+            self.logger.info("Training interrupted.")
+        except Exception as e:
+            self.logger.error(f"An error occurred during training: {e}")
+            if "mlflow" in self.loggers:
+                mlflow.log_param("error", str(e))
+            raise
+        finally:
+            # Ensure MLFlow run is ended
+            if "mlflow" in self.loggers:
+                mlflow.end_run()
+            return history
 
     def _save_checkpoint(self, path: str, epoch: int, metric_value: Optional[float] = None) -> None:
         """
