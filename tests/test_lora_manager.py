@@ -202,12 +202,12 @@ class TestLoraManager:
         with pytest.raises(ValueError, match=r"Target adapter 'another' already exists"):
             manager.copy_adapter("default", "another")
 
-    def test_get_model_base(self, mock_config, mock_dependencies):
+    def test_get_base_model(self, mock_config, mock_dependencies):
         """Test getting the base model."""
         manager = LoraManager(mock_config)
 
         # Get the base model
-        model = manager.get_model()
+        model = manager.get_base_model()
 
         # Check that the base model was returned
         assert model == manager.base_model
