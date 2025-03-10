@@ -91,7 +91,7 @@ def train_base_model():
     train_dataloader, eval_dataloader = prepare_dataset(lora_manager.tokenizer)
 
     # Prepare trainer
-    model = lora_manager.get_model()
+    model = lora_manager.get_base_model()
     optimizer = AdamW(model.parameters(), lr=1e-4)
     scheduler = CosineAnnealingLR(optimizer, T_max=10)
     loss_fn = nn.CrossEntropyLoss()

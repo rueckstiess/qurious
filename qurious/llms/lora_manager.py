@@ -152,22 +152,28 @@ class LoraManager:
             with torch.no_grad():
                 target_param.data.copy_(source_param.data)
 
-    def get_model(self, adapter: Optional[str] = None) -> Union[PreTrainedModel, PeftModel]:
+    def get_base_model(self) -> PreTrainedModel:
         """
-        Get the model with the specified adapter or the base model if None.
-
-        Args:
-            adapter: Name of the adapter to use, or None for the base model
+        Get the base model without any adapters applied.
 
         Returns:
-            The model with the specified adapter applied, or the base model
+            The base model
+        """
+        return self.base_model
+
+    def get_model(self, adapter: str) -> PeftModel:
+        """
+        Get the model with the specified adapter.
+
+        Args:
+            adapter: Name of the adapter to use
+
+        Returns:
+            The model with the specified adapter applied
 
         Raises:
             ValueError: If the specified adapter doesn't exist
         """
-        if adapter is None:
-            return self.base_model
-
         if adapter not in self.adapters:
             raise ValueError(f"Adapter '{adapter}' does not exist")
 
