@@ -12,7 +12,7 @@ GRIDWORLD_SYSTEM_PROMPT = """You are an expert in navigating grid world environm
 grid world environment and you need to find a path from the agent position to the goal position. \
 The grid world is represented as a 2D ASCII representation, where . represents an empty cell, # represents an obstacle, A \
 represents the agent and G represents the goal. You can move up, down, left, or right. Your task is to provide \
-a sequence of comma-separated actions (up, down, left, right) that lead to the goal. Do not include any other text."""
+a sequence of actions (e.g. "up left left down") that lead to the goal. Do not include any other text."""
 
 
 def collect_trajectory(env, agent):

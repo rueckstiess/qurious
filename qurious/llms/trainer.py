@@ -449,8 +449,6 @@ class Trainer:
         no_improvement_count = 0
 
         self.logger.info(f"Starting training for {num_epochs} epochs")
-        self.step = 0
-        self.epoch = 0
         try:
             # Main training loop
             for epoch in range(num_epochs):
