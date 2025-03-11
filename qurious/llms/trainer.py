@@ -331,6 +331,66 @@ class Trainer:
         avg_loss = total_loss / steps if steps > 0 else 0
         return {"loss": avg_loss}
 
+    def _save_checkpoint(self, path: str, epoch: int, metric_value: Optional[float] = None) -> None:
+        """
+        Save a model checkpoint.
+
+        Args:
+            path: Path to save the checkpoint
+            epoch: Current epoch number
+            metric_value: Optional metric value to include in the checkpoint
+        """
+        checkpoint = {
+            "model_state_dict": self.model.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "epoch": epoch,
+        }
+        
+        if self.scheduler is not None:
+            checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
+            
+        if metric_value is not None:
+            checkpoint["metric_value"] = metric_value
+            
+        torch.save(checkpoint, path)
+        
+        # Log to MLflow if enabled
+        if "mlflow" in self.loggers:
+            mlflow.log_artifact(path)
+
+    def load_checkpoint(self, path: str, load_optimizer: bool = True, load_scheduler: bool = True) -> int:
+        """
+        Load a model checkpoint.
+
+        Args:
+            path: Path to the checkpoint file
+            load_optimizer: Whether to load optimizer state
+            load_scheduler: Whether to load scheduler state
+
+        Returns:
+            The epoch number from the checkpoint
+        """
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Checkpoint file not found: {path}")
+            
+        checkpoint = torch.load(path, map_location=self.device)
+        
+        # Load model state
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        
+        # Load optimizer state if requested
+        if load_optimizer and "optimizer_state_dict" in checkpoint:
+            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            
+        # Load scheduler state if requested
+        if load_scheduler and self.scheduler is not None and "scheduler_state_dict" in checkpoint:
+            self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+            
+        # Log loading success
+        self.logger.info(f"Loaded checkpoint from {path} (epoch {checkpoint.get('epoch', 'unknown')})")
+        
+        return checkpoint.get("epoch", -1)
+
     def train(
         self,
         train_dataloader: DataLoader,
