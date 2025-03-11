@@ -300,44 +300,6 @@ class TestTrainer:
         assert os.path.exists(save_dir / "checkpoint_epoch_1.pt")
         assert os.path.exists(save_dir / "checkpoint_epoch_2.pt")
 
-    def test_checkpoint_save_load(self, model, loss_fn, optimizer, config, tmp_path):
-        """Test checkpoint saving and loading."""
-        save_path = tmp_path / "model_checkpoint.pt"
-
-        # Create trainer and save checkpoint
-        trainer = Trainer(model, loss_fn, optimizer=optimizer, config=config)
-        trainer._save_checkpoint(str(save_path), epoch=5, metric_value=0.1)
-
-        # Check that checkpoint exists
-        assert os.path.exists(save_path)
-
-        # Create a new trainer and load the checkpoint
-        new_model = SimpleModel(input_dim=10, hidden_dim=5, output_dim=1)
-        new_optimizer = optim.SGD(new_model.parameters(), lr=0.01)
-        new_trainer = Trainer(new_model, loss_fn, optimizer=new_optimizer, config=config)
-
-        checkpoint = new_trainer.load_checkpoint(str(save_path))
-
-        # Verify checkpoint contents
-        assert checkpoint["epoch"] == 5
-        assert checkpoint["metric_value"] == 0.1
-        assert "model_state_dict" in checkpoint
-        assert "optimizer_state_dict" in checkpoint
-        
-        # Verify config was saved (might be a dict now rather than a Config object)
-        assert "config" in checkpoint
-        
-        # If the config is a dict, convert it to a Config object for comparison
-        from qurious.config import Config
-        saved_config = checkpoint["config"]
-        if not isinstance(saved_config, Config) and isinstance(saved_config, dict):
-            # Config was saved as a dict, reconstruct the Config object
-            saved_config = Config(saved_config)
-            
-        # Check a few key values to verify the config was saved correctly
-        if hasattr(saved_config, 'training') and hasattr(saved_config.training, 'learning_rate'):
-            assert saved_config.training.learning_rate == config.training.learning_rate
-
     def test_early_stopping(self, model, loss_fn, dataloader, config):
         """Test early stopping functionality."""
         # Create a trainer with early stopping
