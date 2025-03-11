@@ -12,6 +12,104 @@ import yaml
 T = TypeVar("T")
 
 
+def process_leaf_values(data, fn):
+    """Process all leaf values in a config according to function fn."""
+    if isinstance(data, dict):
+        return {k: process_leaf_values(v, fn) for k, v in data.items()}
+    else:
+        return fn(data)
+
+
+def serialize_value(data: Any) -> Any:
+    """Convert parameter spaces to string representations."""
+    if isinstance(data, ListSpace):
+        return data.values()
+    if isinstance(data, RangeSpace):
+        return f"range({data.start}, {data.stop}, {data.step})"
+    if isinstance(data, LinSpace):
+        return f"linspace({data.start}, {data.stop}, {data.num})"
+    if isinstance(data, LogSpace):
+        return f"logspace({data.start}, {data.stop}, {data.num}, {data.base})"
+    return data
+
+
+def deserialize_value(value: str) -> Any:
+    """Parse string representations of parameter spaces. Also handles scientific notation."""
+
+    # Handle regular lists in config
+    if isinstance(value, list):
+        return ListSpace(value)
+
+    if not isinstance(value, str):
+        return value
+
+    if value.startswith("[") and value.endswith("]"):
+        # Handle list syntax: [1, 2, 3]
+        try:
+            items = json.loads(value)
+            return ListSpace(items)
+        except Exception:
+            pass
+
+    # Handle RangeSpace syntax: range(1, 10, 2)
+    elif value.startswith("range(") and value.endswith(")"):
+        range_str = value[len("range(") : -1]
+        try:
+            params = [int(p.strip()) for p in range_str.split(",")]
+            if len(params) == 2:
+                return RangeSpace(params[0], params[1])
+            elif len(params) == 3:
+                return RangeSpace(params[0], params[1], params[2])
+        except Exception:
+            pass
+
+    # Handle LinSpace syntax: linspace(0, 1, 5)
+    elif value.startswith("linspace(") and value.endswith(")"):
+        linspace_str = value[len("linspace(") : -1]
+        try:
+            # Parse parameters as floats, which handles scientific notation correctly
+            parts = [p.strip() for p in linspace_str.split(",")]
+            params = [float(p) for p in parts]
+            if len(params) == 3:
+                return LinSpace(params[0], params[1], int(params[2]))
+        except Exception:
+            pass
+
+    # Handle LogSpace syntax: logspace(0.001, 0.00001, 5)
+    elif value.startswith("logspace(") and value.endswith(")"):
+        logspace_str = value[len("logspace(") : -1]
+        try:
+            parts = [p.strip() for p in logspace_str.split(",")]
+            params = [float(p) for p in parts]
+            if len(params) == 3:
+                return LogSpace(params[0], params[1], int(params[2]))
+            elif len(params) == 4:
+                return LogSpace(params[0], params[1], int(params[2]), params[3])
+        except Exception:
+            pass
+
+    elif value.lower() in ["true", "false", "yes", "no"]:
+        # Handle boolean values
+        return value.lower() in ["true", "yes"]
+
+    elif value.lower() in ["none", "null"]:
+        # Handle None values
+        return None
+
+    # Check if the string might be a scientific notation number
+    else:
+        try:
+            return float(value)
+        except Exception:
+            pass
+        try:
+            return json.loads(value)
+        except Exception:
+            pass
+
+    return value
+
+
 class ParameterSpace(ABC, Generic[T]):
     """Abstract base class for parameter spaces."""
 
@@ -138,48 +236,11 @@ class ConfigSchema:
         """Initialize a ConfigSchema with a schema definition.
 
         This class provides a thin wrapper around jsonschema validation.
-        If jsonschema is not available, a warning is issued and validation is skipped.
 
         Args:
             schema: A JSON Schema compatible schema definition
         """
-        self.schema = self._convert_schema(schema)
-
-        if not JSONSCHEMA_AVAILABLE:
-            import warnings
-
-            warnings.warn(
-                "jsonschema package not found. Schema validation will be skipped. "
-                "Install jsonschema for full validation support."
-            )
-
-    def _convert_schema(self, schema: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert our schema format to jsonschema format if needed."""
-        if isinstance(schema, dict) and "type" in schema:
-            # This appears to already be in jsonschema format
-            return schema
-
-        result = {"type": "object", "properties": {}, "required": [], "additionalProperties": True}
-
-        # Convert each schema key to jsonschema format
-        for key, value in schema.items():
-            if isinstance(value, dict):
-                if "type" in value:
-                    # Already has a type specification
-                    result["properties"][key] = value.copy()
-                    if value.get("required", False):
-                        result["required"].append(key)
-                        # Remove the required field as it's not part of jsonschema property spec
-                        if "required" in result["properties"][key]:
-                            del result["properties"][key]["required"]
-                else:
-                    # Nested schema
-                    result["properties"][key] = self._convert_schema(value)
-            else:
-                # Simple type specification
-                result["properties"][key] = {"type": value}
-
-        return result
+        self.schema = schema
 
     def validate(self, config: Dict[str, Any], path: str = "") -> List[str]:
         """Validate a config against this schema.
@@ -191,9 +252,6 @@ class ConfigSchema:
         Returns:
             A list of validation error messages, empty if valid
         """
-        if not JSONSCHEMA_AVAILABLE:
-            return []  # Skip validation if jsonschema is not available
-
         errors = []
         try:
             jsonschema.validate(instance=config, schema=self.schema)
@@ -296,29 +354,6 @@ class DotDict:
         for key, value in self._data.items():
             if isinstance(value, DotDict):
                 result[key] = value.to_dict()
-            elif isinstance(value, ParameterSpace):
-                # Store parameter spaces as a special format
-                if isinstance(value, ListSpace):
-                    result[key] = {"__type__": "ListSpace", "values": value.values()}
-                elif isinstance(value, RangeSpace):
-                    result[key] = {
-                        "__type__": "RangeSpace",
-                        "start": value.start,
-                        "stop": value.stop,
-                        "step": value.step,
-                    }
-                elif isinstance(value, LinSpace):
-                    result[key] = {"__type__": "LinSpace", "start": value.start, "stop": value.stop, "num": value.num}
-                elif isinstance(value, LogSpace):
-                    result[key] = {
-                        "__type__": "LogSpace",
-                        "start": value.start,
-                        "stop": value.stop,
-                        "num": value.num,
-                        "base": value.base,
-                    }
-                else:
-                    result[key] = list(value.values())
             else:
                 result[key] = value
 
@@ -341,6 +376,8 @@ class Config(DotDict):
         super().__init__({})
 
         if data:
+            # Process the data to convert string representations to parameter spaces
+            data = process_leaf_values(data, deserialize_value)
             self.update(data)
 
         if self._schema:
@@ -355,7 +392,7 @@ class Config(DotDict):
         else:
             if getattr(self, "_frozen", False):
                 raise AttributeError("Cannot modify a frozen config")
-            super().__setattr__(key, value)
+            super().__setattr__(key, deserialize_value(value))
 
     def validate(self) -> List[str]:
         """Validate the config against its schema."""
@@ -382,134 +419,11 @@ class Config(DotDict):
     def from_yaml(cls, yaml_str: str) -> "Config":
         """Create a Config from a YAML string."""
 
-        def parameter_space_constructor(loader, node):
-            data = loader.construct_mapping(node)
-            type_name = data.get("__type__")
+        data = yaml.safe_load(yaml_str)
 
-            if type_name == "ListSpace":
-                return ListSpace(data.get("values", []))
-            elif type_name == "RangeSpace":
-                return RangeSpace(data.get("start", 0), data.get("stop", 0), data.get("step", 1))
-            elif type_name == "LinSpace":
-                return LinSpace(data.get("start", 0), data.get("stop", 0), data.get("num", 0))
-            elif type_name == "LogSpace":
-                return LogSpace(data.get("start", 0), data.get("stop", 0), data.get("num", 0), data.get("base", 10.0))
-
-            return data
-
-        def parse_space_dict(data):
-            """Parse dictionaries that might represent parameter spaces."""
-            if not isinstance(data, dict):
-                return data
-
-            if "__type__" in data:
-                type_name = data.get("__type__")
-
-                if type_name == "ListSpace":
-                    return ListSpace(data.get("values", []))
-                elif type_name == "RangeSpace":
-                    return RangeSpace(data.get("start", 0), data.get("stop", 0), data.get("step", 1))
-                elif type_name == "LinSpace":
-                    return LinSpace(data.get("start", 0), data.get("stop", 0), data.get("num", 0))
-                elif type_name == "LogSpace":
-                    return LogSpace(
-                        data.get("start", 0), data.get("stop", 0), data.get("num", 0), data.get("base", 10.0)
-                    )
-
-                return data
-
-            # Recursively process nested dictionaries
-            return {k: parse_space_dict(v) for k, v in data.items()}
-
-        def parse_string_into_space(value):
-            """Parse string representations of parameter spaces."""
-            if not isinstance(value, str):
-                return value
-
-            # Handle ListSpace syntax: ListSpace([1, 2, 3])
-            if value.startswith("ListSpace(") and value.endswith(")"):
-                list_str = value[len("ListSpace(") : -1]
-                try:
-                    # Use eval, but restricted to safe operations for parsing lists
-                    # This is safe because we're only using it to parse literal lists
-                    import ast
-
-                    list_values = ast.literal_eval(list_str)
-                    if isinstance(list_values, list):
-                        return ListSpace(list_values)
-                except Exception:
-                    pass
-
-            # Handle RangeSpace syntax: RangeSpace(1, 10, 2)
-            elif value.startswith("RangeSpace(") and value.endswith(")"):
-                range_str = value[len("RangeSpace(") : -1]
-                try:
-                    params = [int(p.strip()) for p in range_str.split(",")]
-                    if len(params) == 2:
-                        return RangeSpace(params[0], params[1])
-                    elif len(params) == 3:
-                        return RangeSpace(params[0], params[1], params[2])
-                except Exception:
-                    pass
-
-            # Handle LinSpace syntax: LinSpace(0, 1, 5)
-            elif value.startswith("LinSpace(") and value.endswith(")"):
-                linspace_str = value[len("LinSpace(") : -1]
-                try:
-                    # Parse parameters as floats, which handles scientific notation correctly
-                    parts = [p.strip() for p in linspace_str.split(",")]
-                    params = [float(p) for p in parts]
-                    if len(params) == 3:
-                        return LinSpace(params[0], params[1], int(params[2]))
-                except Exception:
-                    pass
-
-            # Handle LogSpace syntax: LogSpace(0.001, 0.00001, 5)
-            elif value.startswith("LogSpace(") and value.endswith(")"):
-                logspace_str = value[len("LogSpace(") : -1]
-                try:
-                    parts = [p.strip() for p in logspace_str.split(",")]
-                    params = [float(p) for p in parts]
-                    if len(params) == 3:
-                        return LogSpace(params[0], params[1], int(params[2]))
-                    elif len(params) == 4:
-                        return LogSpace(params[0], params[1], int(params[2]), params[3])
-                except Exception:
-                    pass
-
-            # Check if the string might be a scientific notation number
-            elif "e" in value.lower() or "E" in value:
-                try:
-                    return float(value)
-                except Exception:
-                    pass
-
-            return value
-
-        def process_config_values(data):
-            """Process all values in a config to convert string representations to parameter spaces."""
-            if isinstance(data, dict):
-                # First check if this dict is a parameter space
-                space_dict = parse_space_dict(data)
-                # If it's still a dict after parsing, process its values
-                if isinstance(space_dict, dict):
-                    return {k: process_config_values(v) for k, v in space_dict.items()}
-                return space_dict
-            elif isinstance(data, list):
-                return [process_config_values(item) for item in data]
-            else:
-                return parse_string_into_space(data)
-
-        # Add our custom constructor for parameter spaces
-        yaml.add_constructor("!space", parameter_space_constructor)
-
-        try:
-            data = yaml.safe_load(yaml_str)
-            # Process the data to convert string representations to parameter spaces
-            processed_data = process_config_values(data)
-            return cls(processed_data)
-        except yaml.YAMLError as e:
-            raise ValueError(f"Error parsing YAML: {e}")
+        # Process the data to convert string representations to parameter spaces
+        processed_data = process_leaf_values(data, deserialize_value)
+        return cls(processed_data)
 
     @classmethod
     def from_yaml_file(cls, file_path: str) -> "Config":
@@ -520,33 +434,9 @@ class Config(DotDict):
     def to_yaml(self) -> str:
         """Convert to a YAML string."""
 
-        def parameter_space_representer(dumper, data):
-            if isinstance(data, ListSpace):
-                mapping = {"__type__": "ListSpace", "values": data.values()}
-            elif isinstance(data, RangeSpace):
-                mapping = {"__type__": "RangeSpace", "start": data.start, "stop": data.stop, "step": data.step}
-            elif isinstance(data, LinSpace):
-                mapping = {"__type__": "LinSpace", "start": data.start, "stop": data.stop, "num": data.num}
-            elif isinstance(data, LogSpace):
-                mapping = {
-                    "__type__": "LogSpace",
-                    "start": data.start,
-                    "stop": data.stop,
-                    "num": data.num,
-                    "base": data.base,
-                }
-            else:
-                mapping = {"values": list(data.values())}
-
-            return dumper.represent_mapping("!space", mapping)
-
-        # Register our custom representers
-        yaml.add_representer(ListSpace, parameter_space_representer)
-        yaml.add_representer(RangeSpace, parameter_space_representer)
-        yaml.add_representer(LinSpace, parameter_space_representer)
-        yaml.add_representer(LogSpace, parameter_space_representer)
-
-        return yaml.dump(self.to_dict(), default_flow_style=False)
+        # Process the data to convert parameter spaces to string representations
+        str_data = process_leaf_values(self.to_dict(), serialize_value)
+        return yaml.dump(str_data, default_flow_style=False)
 
     def to_yaml_file(self, file_path: str) -> None:
         """Save to a YAML file."""
@@ -606,42 +496,6 @@ class Config(DotDict):
 
         return result
 
-    @staticmethod
-    def _parse_string_value(value: str) -> Any:
-        """Parse a string value to the appropriate type.
-
-        This helper function is used to parse string values from environment variables,
-        command-line arguments, etc. It handles boolean literals, null values, scientific
-        notation, and tries to parse the value as JSON if possible.
-
-        Args:
-            value: The string value to parse
-
-        Returns:
-            The parsed value with the appropriate type
-        """
-        if value.lower() == "true":
-            return True
-        elif value.lower() == "false":
-            return False
-        elif value.lower() == "null" or value.lower() == "none":
-            return None
-        else:
-            # Try to parse as JSON
-            try:
-                return json.loads(value)
-            except Exception:
-                # Try to parse scientific notation
-                try:
-                    # Check if the string looks like scientific notation
-                    if "e" in value.lower() or "E" in value:
-                        return float(value)
-                    # Otherwise, keep as string
-                    return value
-                except Exception:
-                    # If all else fails, keep as string
-                    return value
-
     @classmethod
     def from_env(cls, prefix: str = "CONFIG_") -> "Config":
         """Create a Config from environment variables."""
@@ -653,7 +507,7 @@ class Config(DotDict):
                 config_keys = config_key.split("__")
 
                 # Parse the value
-                parsed_value = cls._parse_string_value(value)
+                parsed_value = deserialize_value(value)
 
                 # Build nested dict structure
                 current = config_data
@@ -691,7 +545,7 @@ class Config(DotDict):
                 keys = key.split(".")
 
                 # Parse the value
-                parsed_value = cls._parse_string_value(value)
+                parsed_value = deserialize_value(value)
 
                 # Build nested dict structure
                 current = config_data

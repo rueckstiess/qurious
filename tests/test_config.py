@@ -349,6 +349,32 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.a, 1)
         self.assertEqual(config.b.c, 2)
 
+    def test_parameter_space_from_init(self):
+        """Test initialization."""
+        config = Config({"a": 1, "b": [1, 2, 3], "c": "linspace(0, 1, 5)"})
+        self.assertEqual(config.a, 1)
+        self.assertIsInstance(config.b, ListSpace)
+        self.assertEqual(list(config.b), [1, 2, 3])
+        self.assertIsInstance(config.c, LinSpace)
+        self.assertEqual(list(config.c), list(np.linspace(0, 1, 5)))
+
+    def test_parameter_space_from_setattr(self):
+        """Test setting parameter space using setattr."""
+        config = Config({"a": 1})
+        config.b = [1, 2, 3]
+        config.c = "linspace(0, 1, 5)"
+        config.d = "1e-3"
+        config.e = '{"foo": "bar"}'
+
+        self.assertEqual(config.a, 1)
+        self.assertIsInstance(config.b, ListSpace)
+        self.assertEqual(list(config.b), [1, 2, 3])
+        self.assertIsInstance(config.c, LinSpace)
+        self.assertEqual(list(config.c), list(np.linspace(0, 1, 5)))
+        self.assertEqual(config.d, 1e-3)
+        self.assertIsInstance(config.e, DotDict)
+        self.assertEqual(config.e.to_dict(), {"foo": "bar"})
+
     def test_validation(self):
         """Test config validation."""
         schema = {"type": "object", "required": ["b"], "properties": {"a": {"type": "number"}, "b": {"type": "object"}}}
@@ -474,8 +500,8 @@ class TestConfig(unittest.TestCase):
         # Test with string values using scientific notation
         yaml_str = """
         spaces:
-          lin_space: "LinSpace(1e-4, 1e-2, 5)"
-          log_space: "LogSpace(1e-5, 1e-3, 3)"
+          lin_space: "linspace(1e-4, 1e-2, 5)"
+          log_space: "logspace(1e-5, 1e-3, 3)"
         """
 
         config = Config.from_yaml(yaml_str)
