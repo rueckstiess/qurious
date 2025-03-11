@@ -13,24 +13,24 @@ from qurious.llms.lora_manager import LoraManager
 @pytest.fixture
 def mock_config():
     # Create a Config object with the expected structure
-    config = Config({
-        "model": {
-            "base_model": "mock-model/test",
-            "device": "cpu",
-            "lora_enabled": True,
-            "lora_config": {
-                "r": 8,
-                "lora_alpha": 16,
-                "lora_dropout": 0.05,
-                "target_modules": "all-linear",
-                "bias": "none",
-                "task_type": "CAUSAL_LM"
-            }
-        },
-        "paths": {
-            "checkpoint_dir": "./test_checkpoints"
+    config = Config(
+        {
+            "model": {
+                "base_model": "mock-model/test",
+                "device": "cpu",
+                "lora_enabled": True,
+                "lora_config": {
+                    "r": 8,
+                    "lora_alpha": 16,
+                    "lora_dropout": 0.05,
+                    "target_modules": "all-linear",
+                    "bias": "none",
+                    "task_type": "CAUSAL_LM",
+                },
+            },
+            "paths": {"checkpoint_dir": "./test_checkpoints"},
         }
-    })
+    )
     return config
 
 

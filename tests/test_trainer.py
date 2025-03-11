@@ -357,9 +357,7 @@ class TestTrainer:
 
         # Train for 1 epoch and save
         initial_trainer = Trainer(model, loss_fn, config=config)
-        initial_history = initial_trainer.train(
-            dataloader, num_epochs=1, eval_dataloader=dataloader, save_dir=str(save_dir), save_freq=1
-        )
+        initial_trainer.train(dataloader, num_epochs=1, eval_dataloader=dataloader, save_dir=str(save_dir), save_freq=1)
 
         # Check that the checkpoint was created
         checkpoint_path = str(save_dir / "checkpoint_epoch_1.pt")

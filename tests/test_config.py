@@ -224,17 +224,19 @@ class TestConfigSchema(unittest.TestCase):
 
     def test_validate_types(self):
         """Test type validation."""
-        schema = ConfigSchema({
-            "properties": {
-                "a": {"type": "number"},
-                "b": {"type": "string"},
-                "c": {"type": "boolean"},
-                "d": {"type": "array"},
-                "e": {"type": "object"},
-                "f": {"type": "null"}
-            },
-            "type": "object"
-        })
+        schema = ConfigSchema(
+            {
+                "properties": {
+                    "a": {"type": "number"},
+                    "b": {"type": "string"},
+                    "c": {"type": "boolean"},
+                    "d": {"type": "array"},
+                    "e": {"type": "object"},
+                    "f": {"type": "null"},
+                },
+                "type": "object",
+            }
+        )
 
         # Valid config
         valid_config = {"a": 1, "b": "hello", "c": True, "d": [1, 2, 3], "e": {"key": "value"}, "f": None}
@@ -256,14 +258,9 @@ class TestConfigSchema(unittest.TestCase):
 
     def test_validate_required(self):
         """Test required parameter validation."""
-        schema = ConfigSchema({
-            "required": ["a"],
-            "properties": {
-                "a": {"type": "number"},
-                "b": {"type": "string"}
-            },
-            "type": "object"
-        })
+        schema = ConfigSchema(
+            {"required": ["a"], "properties": {"a": {"type": "number"}, "b": {"type": "string"}}, "type": "object"}
+        )
 
         # Valid config
         valid_config = {"a": 1}
@@ -277,17 +274,19 @@ class TestConfigSchema(unittest.TestCase):
 
     def test_validate_constraints(self):
         """Test constraint validation."""
-        schema = ConfigSchema({
-            "properties": {
-                "a": {"type": "number", "minimum": 0, "maximum": 10},
-                "b": {"type": "string", "pattern": "^[a-z]+$"},
-                "c": {"type": "string", "enum": ["option1", "option2", "option3"]},
-                # Note: jsonschema doesn't directly support custom validators like the lambda function
-                # You'd typically use a format validator or additional validation logic
-                "d": {"type": "number", "multipleOf": 2}  # Must be even
-            },
-            "type": "object"
-        })
+        schema = ConfigSchema(
+            {
+                "properties": {
+                    "a": {"type": "number", "minimum": 0, "maximum": 10},
+                    "b": {"type": "string", "pattern": "^[a-z]+$"},
+                    "c": {"type": "string", "enum": ["option1", "option2", "option3"]},
+                    # Note: jsonschema doesn't directly support custom validators like the lambda function
+                    # You'd typically use a format validator or additional validation logic
+                    "d": {"type": "number", "multipleOf": 2},  # Must be even
+                },
+                "type": "object",
+            }
+        )
 
         # Valid config
         valid_config = {"a": 5, "b": "abc", "c": "option2", "d": 4}
@@ -302,25 +301,24 @@ class TestConfigSchema(unittest.TestCase):
 
     def test_validate_nested(self):
         """Test nested schema validation."""
-        schema = ConfigSchema({
-            "properties": {
-                "training": {
-                    "type": "object",
-                    "properties": {
-                        "batch_size": {"type": "number"},
-                        "learning_rate": {"type": "number"},
-                        "optimizer": {
-                            "type": "object",
-                            "properties": {
-                                "name": {"type": "string"},
-                                "params": {"type": "object"}
-                            }
-                        }
+        schema = ConfigSchema(
+            {
+                "properties": {
+                    "training": {
+                        "type": "object",
+                        "properties": {
+                            "batch_size": {"type": "number"},
+                            "learning_rate": {"type": "number"},
+                            "optimizer": {
+                                "type": "object",
+                                "properties": {"name": {"type": "string"}, "params": {"type": "object"}},
+                            },
+                        },
                     }
-                }
-            },
-            "type": "object"
-        })
+                },
+                "type": "object",
+            }
+        )
 
         # Valid config
         valid_config = {
@@ -353,14 +351,7 @@ class TestConfig(unittest.TestCase):
 
     def test_validation(self):
         """Test config validation."""
-        schema = {
-            "type": "object",
-            "required": ["b"],
-            "properties": {
-                "a": {"type": "number"},
-                "b": {"type": "object"}
-            }
-        }
+        schema = {"type": "object", "required": ["b"], "properties": {"a": {"type": "number"}, "b": {"type": "object"}}}
 
         # Valid config
         valid_data = {"a": 1, "b": {"c": "hello"}}
@@ -463,16 +454,16 @@ class TestConfig(unittest.TestCase):
         self.assertIsInstance(loaded_config.beta, RangeSpace)
         self.assertIsInstance(loaded_config.gamma, LinSpace)
         self.assertIsInstance(loaded_config.delta, LogSpace)
-        
+
         # Check values in the loaded parameter spaces
         self.assertEqual(list(loaded_config.alpha), [1, 2, 3])
         self.assertEqual(list(loaded_config.beta), [10, 12, 14, 16, 18])
-        
+
         loaded_lin_values = list(loaded_config.gamma)
         self.assertEqual(len(loaded_lin_values), 5)
         self.assertAlmostEqual(loaded_lin_values[0], 0)
         self.assertAlmostEqual(loaded_lin_values[-1], 100)
-        
+
         loaded_log_values = list(loaded_config.delta)
         self.assertEqual(len(loaded_log_values), 3)
         self.assertAlmostEqual(loaded_log_values[0], 1e-3)
@@ -643,8 +634,9 @@ class TestConfigProduct(unittest.TestCase):
             self.assertIn(sample.model.dimensions, range(100, 1000, 100))
             # Check that learning rate is within acceptable range (with some tolerance for floating point)
             value = sample.training.learning_rate
-            self.assertTrue(1e-4 - 1e-10 <= value <= 1e-2 + 1e-10,
-                           f"Learning rate {value} not in range [{1e-4}, {1e-2}]")
+            self.assertTrue(
+                1e-4 - 1e-10 <= value <= 1e-2 + 1e-10, f"Learning rate {value} not in range [{1e-4}, {1e-2}]"
+            )
 
 
 if __name__ == "__main__":
