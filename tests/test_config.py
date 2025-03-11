@@ -2,6 +2,7 @@
 Unit tests for the ML Configuration System.
 """
 
+import argparse
 import os
 import tempfile
 import unittest
@@ -218,6 +219,14 @@ class TestDotDict(unittest.TestCase):
         self.assertIsInstance(result["b"], dict)
         self.assertNotIsInstance(result["b"], DotDict)
 
+    def test_to_flat_dict(self):
+        """Test conversion to flat dictionary."""
+        d = DotDict({"a": 1, "b": {"c": 2, "d": {"e": 3}}})
+        result = d.to_flat_dict()
+
+        self.assertEqual(result, {"a": 1, "b.c": 2, "b.d.e": 3})
+        self.assertIsInstance(result, dict)
+
 
 class TestConfigSchema(unittest.TestCase):
     """Test cases for ConfigSchema class."""
@@ -349,6 +358,34 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.a, 1)
         self.assertEqual(config.b.c, 2)
 
+    def test_parameter_space_from_init(self):
+        """Test initialization."""
+        config = Config({"a": 1, "b": [1, 2, 3], "c": "linspace(0, 1, 5)", "d": None, "e": "none"})
+        self.assertEqual(config.a, 1)
+        self.assertIsInstance(config.b, ListSpace)
+        self.assertEqual(list(config.b), [1, 2, 3])
+        self.assertIsInstance(config.c, LinSpace)
+        self.assertEqual(list(config.c), list(np.linspace(0, 1, 5)))
+        self.assertEqual(config.d, None)
+        self.assertEqual(config.e, "none")
+
+    def test_parameter_space_from_setattr(self):
+        """Test setting parameter space using setattr."""
+        config = Config({"a": 1})
+        config.b = [1, 2, 3]
+        config.c = "linspace(0, 1, 5)"
+        config.d = "1e-3"
+        config.e = '{"foo": "bar"}'
+
+        self.assertEqual(config.a, 1)
+        self.assertIsInstance(config.b, ListSpace)
+        self.assertEqual(list(config.b), [1, 2, 3])
+        self.assertIsInstance(config.c, LinSpace)
+        self.assertEqual(list(config.c), list(np.linspace(0, 1, 5)))
+        self.assertEqual(config.d, 1e-3)
+        self.assertIsInstance(config.e, DotDict)
+        self.assertEqual(config.e.to_dict(), {"foo": "bar"})
+
     def test_validation(self):
         """Test config validation."""
         schema = {"type": "object", "required": ["b"], "properties": {"a": {"type": "number"}, "b": {"type": "object"}}}
@@ -469,6 +506,47 @@ class TestConfig(unittest.TestCase):
         self.assertAlmostEqual(loaded_log_values[0], 1e-3)
         self.assertAlmostEqual(loaded_log_values[-1], 1e-1)
 
+    def test_yaml_none_bool(self):
+        yaml_str = """
+        v1: null
+        v2: none
+        v3: "none"
+        v4: true
+        v5: "True"
+        """
+        config = Config.from_yaml(yaml_str)
+        self.assertIsNone(config.v1)
+        self.assertEqual(config.v2, "none")
+        self.assertEqual(config.v3, "none")
+        self.assertIsInstance(config.v4, bool)
+        self.assertIsInstance(config.v5, bool)
+
+    def test_parameter_spaces_scientific_notation(self):
+        """Test parameter spaces with scientific notation values."""
+        # Test with string values using scientific notation
+        yaml_str = """
+        spaces:
+          lin_space: "linspace(1e-4, 1e-2, 5)"
+          log_space: "logspace(1e-5, 1e-3, 3)"
+        """
+
+        config = Config.from_yaml(yaml_str)
+
+        # Check if the strings were correctly parsed into parameter spaces
+        self.assertIsInstance(config.spaces.lin_space, LinSpace)
+        self.assertIsInstance(config.spaces.log_space, LogSpace)
+
+        # Check the values
+        lin_values = list(config.spaces.lin_space)
+        self.assertEqual(len(lin_values), 5)
+        self.assertAlmostEqual(lin_values[0], 1e-4)
+        self.assertAlmostEqual(lin_values[-1], 1e-2)
+
+        log_values = list(config.spaces.log_space)
+        self.assertEqual(len(log_values), 3)
+        self.assertAlmostEqual(log_values[0], 1e-5)
+        self.assertAlmostEqual(log_values[-1], 1e-3)
+
     def test_merge(self):
         """Test merging configs."""
         config1 = Config({"model": {"type": "transformer", "dimensions": 512}, "training": {"batch_size": 32}})
@@ -483,6 +561,69 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(merged.model.heads, 12)  # Added
         self.assertEqual(merged.training.batch_size, 32)  # Unchanged
         self.assertEqual(merged.training.learning_rate, 0.001)  # Added
+
+    def test_to_dict_spaces(self):
+        """Test conversion to dictionary with parameter spaces"""
+        config = Config(
+            {
+                "model": {"type": "transformer", "dimensions": ListSpace([128, 256, 512])},
+                "training": {"batch_size": LinSpace(10, 20, 3)},
+            }
+        )
+
+        # Convert to dictionary without serialization
+        result = config.to_dict(serialize_spaces=False)
+
+        # Check types
+        self.assertIsInstance(result, dict)
+        self.assertIsInstance(result["model"], dict)
+        self.assertIsInstance(result["training"], dict)
+
+        # Check values
+        self.assertIsInstance(result["model"]["dimensions"], ListSpace)
+        self.assertEqual(list(result["model"]["dimensions"]), [128, 256, 512])
+        self.assertIsInstance(result["training"]["batch_size"], LinSpace)
+        self.assertEqual(list(result["training"]["batch_size"]), [10, 15, 20])
+
+        # Convert to dictionary with serialization
+        result = config.to_dict(serialize_spaces=True)
+
+        # Check types
+        self.assertIsInstance(result, dict)
+        self.assertIsInstance(result["model"], dict)
+        self.assertIsInstance(result["training"], dict)
+
+        # Check values
+        self.assertIsInstance(result["model"]["dimensions"], list)
+        self.assertEqual(result["model"]["dimensions"], [128, 256, 512])
+        self.assertIsInstance(result["training"]["batch_size"], str)
+        self.assertEqual(result["training"]["batch_size"], "linspace(10, 20, 3)")
+
+    def test_flatten_and_stringify(self):
+        """Test conversion to flattened dictionary and stringify parameters"""
+        config = Config(
+            {
+                "model": {"type": "transformer", "dimensions": ListSpace([128, 256, 512])},
+                "training": {"epochs": 5, "batch_size": LinSpace(10, 20, 3)},
+            }
+        )
+
+        # Convert to dictionary with serialization
+        result = config.flatten_and_stringify()
+
+        # Check types
+        self.assertIsInstance(result, dict)
+        self.assertSetEqual(
+            set(result.keys()), {"model.type", "model.dimensions", "training.batch_size", "training.epochs"}
+        )
+
+        # Check values
+        for k, v in result.items():
+            self.assertIsInstance(k, str)
+
+        self.assertEqual(result["model.dimensions"], "[128, 256, 512]")
+        self.assertEqual(result["training.batch_size"], "linspace(10, 20, 3)")
+        self.assertEqual(result["training.epochs"], "5")
 
     def test_diff(self):
         """Test config diffing."""
@@ -539,15 +680,17 @@ class TestConfig(unittest.TestCase):
 
     def test_from_args(self):
         """Test loading config from command-line arguments."""
-        args = [
-            "--params",
-            "model.type=transformer",
-            "model.dimensions=512",
-            "training.batch_size=32",
-            "training.learning_rate=0.001",
-            "boolean_value=true",
-            'json_value={"key":"value"}',
-        ]
+
+        args = argparse.Namespace(
+            params=[
+                "model.type=transformer",
+                "model.dimensions=512",
+                "training.batch_size=32",
+                "training.learning_rate=0.001",
+                "boolean_value=true",
+                'json_value={"key":"value"}',
+            ]
+        )
 
         config = Config.from_args(args)
 
@@ -558,6 +701,77 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.training.learning_rate, 0.001)
         self.assertEqual(config.boolean_value, True)
         self.assertEqual(config.json_value.key, "value")
+
+    def test_scientific_notation(self):
+        """Test handling of scientific notation in config values."""
+        # From command-line arguments
+
+        args = argparse.Namespace(
+            params=[
+                "value1=1e-4",
+                "value2=1E-4",
+                "value3=1.5e-2",
+                "value4=1.5E+2",
+                "value5=1e10",
+            ]
+        )
+
+        config = Config.from_args(args)
+
+        # Check values are correctly converted to floats
+        self.assertEqual(config.value1, 0.0001)
+        self.assertEqual(config.value2, 0.0001)
+        self.assertEqual(config.value3, 0.015)
+        self.assertEqual(config.value4, 150.0)
+        self.assertEqual(config.value5, 1e10)
+
+        # From environment variables
+        os.environ["CONFIG_SCI_NOTATION1"] = "1e-4"
+        os.environ["CONFIG_SCI_NOTATION2"] = "1E-4"
+        os.environ["CONFIG_SCI_NOTATION3"] = "1.5e-2"
+        os.environ["CONFIG_SCI_NOTATION4"] = "1.5E+2"
+        os.environ["CONFIG_SCI_NOTATION5"] = "1e10"
+
+        try:
+            config = Config.from_env()
+
+            # Check values are correctly converted to floats
+            self.assertEqual(config.sci_notation1, 0.0001)
+            self.assertEqual(config.sci_notation2, 0.0001)
+            self.assertEqual(config.sci_notation3, 0.015)
+            self.assertEqual(config.sci_notation4, 150.0)
+            self.assertEqual(config.sci_notation5, 1e10)
+        finally:
+            # Clean up environment
+            for key in [
+                "CONFIG_SCI_NOTATION1",
+                "CONFIG_SCI_NOTATION2",
+                "CONFIG_SCI_NOTATION3",
+                "CONFIG_SCI_NOTATION4",
+                "CONFIG_SCI_NOTATION5",
+            ]:
+                if key in os.environ:
+                    del os.environ[key]
+
+    def test_scientific_notation_yaml(self):
+        """Test handling of scientific notation in YAML configs."""
+        yaml_str = """
+        learning_rates:
+          rate1: 1e-4
+          rate2: 1E-4
+          rate3: 1.5e-2
+          rate4: 1.5E+2
+          rate5: 1e10
+        """
+
+        config = Config.from_yaml(yaml_str)
+
+        # Check values are correctly converted to floats
+        self.assertEqual(config.learning_rates.rate1, 0.0001)
+        self.assertEqual(config.learning_rates.rate2, 0.0001)
+        self.assertEqual(config.learning_rates.rate3, 0.015)
+        self.assertEqual(config.learning_rates.rate4, 150.0)
+        self.assertEqual(config.learning_rates.rate5, 1e10)
 
 
 class TestConfigProduct(unittest.TestCase):

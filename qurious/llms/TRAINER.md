@@ -362,11 +362,11 @@ history = trainer.train(
 
 ## Configuration Options
 
-The Trainer can accept a configuration object (`train_config`) with the following common parameters:
+The Trainer can accept a configuration object (`config`) with the following common parameters:
 
-- `weight_decay`: Weight decay for regularization
-- `max_grad_norm`: Gradient clipping value
-- `scheduler_step_per_batch`: Whether to step the scheduler after each batch (True) or each epoch (False)
+- `training.weight_decay`: Weight decay for regularization
+- `training.max_grad_norm`: Gradient clipping value
+- `training.scheduler_step_per_batch`: Whether to step the scheduler after each batch (True) or each epoch (False)
 
 ## Best Practices
 

@@ -88,7 +88,11 @@ def config():
                 "max_grad_norm": 1.0,
                 "scheduler_step_per_batch": True,
                 "log_interval": 10,
-            }
+                "save_interval": 1,
+            },
+            "paths": {
+                "checkpoint_dir": "./checkpoints",
+            },
         }
     )
     return config
@@ -232,8 +236,8 @@ class TestTrainer:
 
         result = trainer.train_step(batch)
 
-        assert "loss" in result
-        assert isinstance(result["loss"], float)
+        assert "train_loss" in result
+        assert isinstance(result["train_loss"], float)
 
     def test_eval_step(self, model, loss_fn, config):
         """Test a single evaluation step."""
@@ -246,8 +250,8 @@ class TestTrainer:
 
         result = trainer.eval_step(batch)
 
-        assert "loss" in result
-        assert isinstance(result["loss"], float)
+        assert "eval_loss" in result
+        assert isinstance(result["eval_loss"], float)
 
     def test_train_epoch(self, model, loss_fn, dataloader, config):
         """Test training for one epoch."""
@@ -275,21 +279,23 @@ class TestTrainer:
 
         metrics = trainer.evaluate(dataloader)
 
-        assert "loss" in metrics
-        assert isinstance(metrics["loss"], float)
+        assert "eval_loss" in metrics
+        assert isinstance(metrics["eval_loss"], float)
 
     def test_train(self, model, loss_fn, dataloader, config, tmp_path):
         """Test full training loop."""
         # Use a temporary directory for checkpoints
         save_dir = tmp_path / "checkpoints"
 
+        config.paths.checkpoint_dir = str(save_dir)
+        config.training.save_interval = 1
+
         trainer = Trainer(model, loss_fn, config=config)
 
         # Train for 2 epochs
-        history = trainer.train(
-            dataloader, num_epochs=2, eval_dataloader=dataloader, save_dir=str(save_dir), save_freq=1
-        )
+        result = trainer.train(dataloader, num_epochs=2, eval_dataloader=dataloader)
 
+        history = result["history"]
         assert "train_loss" in history
         assert "eval_loss" in history
         assert len(history["train_loss"]) == 2
@@ -304,7 +310,8 @@ class TestTrainer:
         checkpoint_path = str(tmp_path / "checkpoint.pt")
 
         # Save a checkpoint
-        trainer._save_checkpoint(checkpoint_path, epoch=5, metric_value=0.123)
+        trainer.epoch = 5
+        trainer._save_checkpoint(checkpoint_path, metric_value=0.123)
 
         # Verify checkpoint file exists
         assert os.path.exists(checkpoint_path)
@@ -333,7 +340,8 @@ class TestTrainer:
                 break  # Just modify one parameter
 
         initial_parameters = {name: param.clone() for name, param in initial_trainer.model.named_parameters()}
-        initial_trainer._save_checkpoint(checkpoint_path, epoch=10, metric_value=0.5)
+        initial_trainer.epoch = 10
+        initial_trainer._save_checkpoint(checkpoint_path, metric_value=0.5)
 
         # Create a new trainer with the same model architecture but different parameters
         new_model = SimpleModel(input_dim=10, hidden_dim=5, output_dim=1)
@@ -353,11 +361,12 @@ class TestTrainer:
         """Test resuming training from a checkpoint."""
         # Create a checkpoint directory
         save_dir = tmp_path / "checkpoints"
+        config.paths.checkpoint_dir = str(save_dir)
         os.makedirs(save_dir, exist_ok=True)
 
         # Train for 1 epoch and save
         initial_trainer = Trainer(model, loss_fn, config=config)
-        initial_trainer.train(dataloader, num_epochs=1, eval_dataloader=dataloader, save_dir=str(save_dir), save_freq=1)
+        initial_trainer.train(dataloader, num_epochs=1, eval_dataloader=dataloader)
 
         # Check that the checkpoint was created
         checkpoint_path = str(save_dir / "checkpoint_epoch_1.pt")
@@ -371,9 +380,7 @@ class TestTrainer:
         resume_trainer.load_checkpoint(checkpoint_path)
 
         # Resume training for another epoch
-        resume_history = resume_trainer.train(
-            dataloader, num_epochs=1, eval_dataloader=dataloader, save_dir=str(save_dir), save_freq=1
-        )
+        resume_result = resume_trainer.train(dataloader, num_epochs=1, eval_dataloader=dataloader)
 
         # Verify the best model checkpoint exists
         assert os.path.exists(str(save_dir / "best_model.pt"))
@@ -386,8 +393,71 @@ class TestTrainer:
         assert len(checkpoint_files) >= 2, "Should have at least two checkpoint files"
 
         # Verify the training history makes sense
+        resume_history = resume_result["history"]
         assert len(resume_history["train_loss"]) == 1  # Only contains the new epoch
         assert len(resume_history["eval_loss"]) == 1
+
+    def test_resume_training_from_later_epoch(self, model, loss_fn, dataloader, config, tmp_path):
+        """Test resuming training from a checkpoint created after multiple epochs."""
+        # Create a checkpoint directory
+        save_dir = tmp_path / "checkpoints_resume"
+        config.paths.checkpoint_dir = str(save_dir)
+        os.makedirs(save_dir, exist_ok=True)
+
+        # Set save_interval to 1 to ensure a checkpoint is created for each epoch
+        config.training.save_interval = 1
+
+        # Train for 3 epochs and save
+        initial_trainer = Trainer(model, loss_fn, config=config)
+        initial_trainer.train(dataloader, num_epochs=3, eval_dataloader=dataloader)
+
+        # Calculate expected step count after 3 epochs (batches per epoch * 3)
+        # This assumes train_step is called exactly once per batch
+        batches_per_epoch = len(dataloader)
+        expected_steps = batches_per_epoch * 3
+
+        # Check that the checkpoint for epoch 3 was created
+        checkpoint_path = str(save_dir / "checkpoint_epoch_3.pt")
+        assert os.path.exists(checkpoint_path)
+
+        # Verify that the epoch and step values in the checkpoint are correct
+        checkpoint = torch.load(checkpoint_path)
+        assert checkpoint["epoch"] == 3
+        assert checkpoint["step"] == expected_steps
+
+        # Store the step value to verify it's properly maintained after resuming
+        saved_step = checkpoint["step"]
+
+        # Create a new model and trainer
+        new_model = SimpleModel(input_dim=10, hidden_dim=5, output_dim=1)
+        resume_trainer = Trainer(new_model, loss_fn, config=config)
+
+        # Load the checkpoint
+        epoch = resume_trainer.load_checkpoint(checkpoint_path)
+
+        # Verify both epoch and step are loaded correctly
+        assert epoch == 3
+        assert resume_trainer.epoch == 3
+        assert resume_trainer.step == saved_step
+
+        # Resume training for 2 more epochs (should be epochs 4 and 5)
+        resume_result = resume_trainer.train(dataloader, num_epochs=2, eval_dataloader=dataloader)
+
+        # Calculate expected final step count (original steps + batches per epoch * 2)
+        expected_final_steps = saved_step + (batches_per_epoch * 2)
+
+        # Verify we have checkpoint from the continued training (epoch 5)
+        assert os.path.exists(str(save_dir / "checkpoint_epoch_5.pt"))
+
+        # Load the latest checkpoint to verify the epoch and step numbers
+        final_checkpoint = torch.load(str(save_dir / "checkpoint_epoch_5.pt"))
+        assert final_checkpoint["epoch"] == 5
+        assert final_checkpoint["step"] == expected_final_steps
+
+        # Verify the training history makes sense
+        resume_history = resume_result["history"]
+        assert len(resume_history["train_loss"]) == 2  # Contains 2 new epochs
+        assert len(resume_history["eval_loss"]) == 2
 
     def test_early_stopping(self, model, loss_fn, dataloader, config):
         """Test early stopping functionality."""
@@ -403,16 +473,16 @@ class TestTrainer:
         def mock_evaluate(dataloader):
             nonlocal eval_counter
             if eval_counter == 0:
-                result = {"loss": 0.5}
+                result = {"train_loss": 0.5}
             else:
-                result = {"loss": 0.6}  # Worse loss, should trigger early stopping
+                result = {"train_loss": 0.6}  # Worse loss, should trigger early stopping
             eval_counter += 1
             return result
 
         trainer.evaluate = mock_evaluate
 
         # Train with early stopping patience of 1
-        history = trainer.train(
+        result = trainer.train(
             dataloader,
             num_epochs=10,  # We expect to stop before this
             eval_dataloader=dataloader,
@@ -420,7 +490,7 @@ class TestTrainer:
         )
 
         # Should have stopped after 2 epochs (1 for initial evaluation, 1 for patience)
-        assert len(history["train_loss"]) <= 3
+        assert len(result["history"]["train_loss"]) <= 3
 
         # Restore original method
         trainer.evaluate = original_evaluate
