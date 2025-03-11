@@ -458,11 +458,17 @@ class Trainer:
             epoch: Current epoch number
             metric_value: Value of the metric used for saving best model
         """
+        # Import Config class here to ensure it's available in this scope
+        from qurious.config import Config
+        
+        # Convert config to dict for safer serialization
+        config_dict = self.config.to_dict() if hasattr(self.config, 'to_dict') else self.config
+        
         checkpoint = {
             "epoch": epoch,
             "model_state_dict": self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
-            "config": self.config,
+            "config": config_dict,
         }
 
         if self.scheduler is not None:
@@ -471,7 +477,9 @@ class Trainer:
         if metric_value is not None:
             checkpoint["metric_value"] = metric_value
 
-        torch.save(checkpoint, path)
+        # Use safe_globals when saving to ensure Config class can be loaded properly
+        with torch.serialization.safe_globals([Config]):
+            torch.save(checkpoint, path)
 
     def load_checkpoint(self, path: str, load_optimizer: bool = True, load_scheduler: bool = True) -> Dict[str, Any]:
         """
@@ -485,10 +493,23 @@ class Trainer:
         Returns:
             Checkpoint data dictionary
         """
-        # Note: In a production environment, you might want to use weights_only=True for security
-        # but this requires additional configuration with torch.serialization.add_safe_globals
-        with torch.serialization.safe_globals([Config]):
-            checkpoint = torch.load(path, map_location=self.device)
+        # Import Config class here to ensure it's available in this scope
+        from qurious.config import Config
+        
+        # First try to load with safe_globals
+        try:
+            with torch.serialization.safe_globals([Config]):
+                checkpoint = torch.load(path, map_location=self.device)
+        except Exception as e:
+            # If that fails, try loading with weights_only=True as a fallback
+            # This won't deserialize the Config object properly, but will at least load model weights
+            self.logger.warning(f"Error loading checkpoint with safe_globals: {e}")
+            self.logger.warning("Trying to load checkpoint with weights_only=True as fallback")
+            try:
+                checkpoint = torch.load(path, map_location=self.device, weights_only=True)
+            except Exception as inner_e:
+                # If both methods fail, raise a more informative error
+                raise RuntimeError(f"Failed to load checkpoint: {inner_e}. Original error: {e}")
 
         self.model.load_state_dict(checkpoint["model_state_dict"])
 
