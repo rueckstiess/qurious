@@ -2,6 +2,7 @@
 Unit tests for the ML Configuration System.
 """
 
+import argparse
 import os
 import tempfile
 import unittest
@@ -351,12 +352,14 @@ class TestConfig(unittest.TestCase):
 
     def test_parameter_space_from_init(self):
         """Test initialization."""
-        config = Config({"a": 1, "b": [1, 2, 3], "c": "linspace(0, 1, 5)"})
+        config = Config({"a": 1, "b": [1, 2, 3], "c": "linspace(0, 1, 5)", "d": None, "e": "none"})
         self.assertEqual(config.a, 1)
         self.assertIsInstance(config.b, ListSpace)
         self.assertEqual(list(config.b), [1, 2, 3])
         self.assertIsInstance(config.c, LinSpace)
         self.assertEqual(list(config.c), list(np.linspace(0, 1, 5)))
+        self.assertEqual(config.d, None)
+        self.assertEqual(config.e, "none")
 
     def test_parameter_space_from_setattr(self):
         """Test setting parameter space using setattr."""
@@ -495,6 +498,21 @@ class TestConfig(unittest.TestCase):
         self.assertAlmostEqual(loaded_log_values[0], 1e-3)
         self.assertAlmostEqual(loaded_log_values[-1], 1e-1)
 
+    def test_yaml_none_bool(self):
+        yaml_str = """
+        v1: null
+        v2: none
+        v3: "none"
+        v4: true
+        v5: "True"
+        """
+        config = Config.from_yaml(yaml_str)
+        self.assertIsNone(config.v1)
+        self.assertEqual(config.v2, "none")
+        self.assertEqual(config.v3, "none")
+        self.assertIsInstance(config.v4, bool)
+        self.assertIsInstance(config.v5, bool)
+
     def test_parameter_spaces_scientific_notation(self):
         """Test parameter spaces with scientific notation values."""
         # Test with string values using scientific notation
@@ -591,15 +609,17 @@ class TestConfig(unittest.TestCase):
 
     def test_from_args(self):
         """Test loading config from command-line arguments."""
-        args = [
-            "--params",
-            "model.type=transformer",
-            "model.dimensions=512",
-            "training.batch_size=32",
-            "training.learning_rate=0.001",
-            "boolean_value=true",
-            'json_value={"key":"value"}',
-        ]
+
+        args = argparse.Namespace(
+            params=[
+                "model.type=transformer",
+                "model.dimensions=512",
+                "training.batch_size=32",
+                "training.learning_rate=0.001",
+                "boolean_value=true",
+                'json_value={"key":"value"}',
+            ]
+        )
 
         config = Config.from_args(args)
 
@@ -614,14 +634,16 @@ class TestConfig(unittest.TestCase):
     def test_scientific_notation(self):
         """Test handling of scientific notation in config values."""
         # From command-line arguments
-        args = [
-            "--params",
-            "value1=1e-4",
-            "value2=1E-4",
-            "value3=1.5e-2",
-            "value4=1.5E+2",
-            "value5=1e10",
-        ]
+
+        args = argparse.Namespace(
+            params=[
+                "value1=1e-4",
+                "value2=1E-4",
+                "value3=1.5e-2",
+                "value4=1.5E+2",
+                "value5=1e10",
+            ]
+        )
 
         config = Config.from_args(args)
 

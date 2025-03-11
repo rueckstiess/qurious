@@ -30,6 +30,8 @@ def serialize_value(data: Any) -> Any:
         return f"linspace({data.start}, {data.stop}, {data.num})"
     if isinstance(data, LogSpace):
         return f"logspace({data.start}, {data.stop}, {data.num}, {data.base})"
+    if isinstance(data, str) and data.lower() in ["true", "false", "none"]:
+        return f"str({data.lower()})"
     return data
 
 
@@ -91,10 +93,6 @@ def deserialize_value(value: str) -> Any:
     elif value.lower() in ["true", "false", "yes", "no"]:
         # Handle boolean values
         return value.lower() in ["true", "yes"]
-
-    elif value.lower() in ["none", "null"]:
-        # Handle None values
-        return None
 
     # Check if the string might be a scientific notation number
     else:
@@ -522,22 +520,17 @@ class Config(DotDict):
         return cls(config_data)
 
     @classmethod
-    def from_args(cls, args: List[str] = None) -> "Config":
+    def from_args(cls, args: argparse.Namespace) -> "Config":
         """Create a Config from command-line arguments."""
-        parser = argparse.ArgumentParser(description="Configuration from command-line arguments")
-        parser.add_argument("--config", type=str, help="Path to a YAML config file")
-        parser.add_argument("--params", nargs="+", help="Key-value pairs in the format key=value")
-
-        parsed_args = parser.parse_args(args)
         config_data = {}
 
         # Load from file if specified
-        if parsed_args.config:
-            config_data = cls.from_yaml_file(parsed_args.config).to_dict()
+        if "config" in args:
+            config_data = cls.from_yaml_file(args.config).to_dict()
 
         # Override with key-value pairs
-        if parsed_args.params:
-            for param in parsed_args.params:
+        if args.params:
+            for param in args.params:
                 if "=" not in param:
                     continue
 
