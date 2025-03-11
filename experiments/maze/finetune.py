@@ -21,7 +21,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["MLFLOW_TRACKING_URI"] = "http://localhost:5000"
 
 
-def main(config: Config, args: argparse.Namespace, parent_run_id: str = None):
+def main(config: Config, args: argparse.Namespace, parent_run_id: str = None, run_name: str = None):
     print(f"Running with config:\n{config.to_yaml()}")
 
     # create new "text" column by concatenating "prompt" and "response" columns
@@ -108,6 +108,7 @@ def main(config: Config, args: argparse.Namespace, parent_run_id: str = None):
         experiment_name=args.experiment,
         loss_fn=loss_fn,
         parent_run_id=parent_run_id,
+        run_name=run_name,
     )
 
     # Load checkpoint if provided
@@ -123,8 +124,8 @@ def main(config: Config, args: argparse.Namespace, parent_run_id: str = None):
         print(f"Training history: {history}")
 
     # Loading best model
-    best_model_path = str(Path(config.paths.checkpoint_dir) / "best_model.pt")
-    trainer.load_checkpoint(best_model_path, load_optimizer=False, load_scheduler=False)
+    # best_model_path = str(Path(config.paths.checkpoint_dir) / "best_model.pt")
+    # trainer.load_checkpoint(best_model_path, load_optimizer=False, load_scheduler=False)
 
     # ## Generate outputs
 
@@ -170,8 +171,8 @@ def main(config: Config, args: argparse.Namespace, parent_run_id: str = None):
     print(df)
 
     if not args.debug:
-        with mlflow.start_run(trainer.run_id):
-            mlflow.log_artifact(best_model_path, artifact_path="best_model.pt")
+        with mlflow.start_run(trainer.run_id, nested=parent_run_id is not None):
+            # mlflow.log_artifact(best_model_path, artifact_path="best_model.pt")
             mlflow.log_table(df, artifact_file="generated_samples.json")
     else:
         print("Generated samples:\n")
@@ -185,32 +186,34 @@ def main(config: Config, args: argparse.Namespace, parent_run_id: str = None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Finetune a model on a dataset.")
     parser.add_argument("--config", "-c", type=str, default="./config.yaml", help="Path to the config file.")
+    parser.add_argument("--params", "-p", nargs="+", default=[], help="Parameters to override in the config file.")
     parser.add_argument("--dataset", "-d", type=str, default="grid_world_1k.jsonl", help="Dataset filename.")
     parser.add_argument("--experiment", "-e", type=str, default="maze-supervised-finetune", help="Experiment name.")
+    parser.add_argument("--run-name", "-n", type=str, default=None, help="Run name for MLflow.")
     parser.add_argument("--resume", "-r", type=str, default=None, help="Path to the checkpoint to resume from.")
     parser.add_argument("--skip-training", action="store_true", help="Skip training and only generate outputs.")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode (log to console instead of MLflow).")
-    parser.add_argument("--params", "-p", nargs="+", default=[], help="Parameters to override in the config file.")
 
     args = parser.parse_args()
-
-    config = Config.from_yaml_file(args.config)
-
-    if args.params:
-        override_args = ["--params", *args.params]
-        override_config = Config.from_args(override_args)
-        config = config.merge(override_config)
+    config = Config.from_args(args)
 
     multi_config = ConfigProduct(config)
     if len(multi_config) > 1:
         # create top-level run in mlflow and pass parent_run_id to child runs
+        mlflow.set_tracking_uri("http://127.0.0.1:5000")
         mlflow.set_experiment(args.experiment)
-        mlflow.start_run()
-        mlflow.log_params(config.to_dict())
-        print(f"Found {len(multi_config)} configurations. Running all of them.")
-        for config in multi_config:
-            main(config=config, args=args, parent_run_id=mlflow.active_run().info.run_id)
+        mlflow.start_run(run_name=args.run_name)
+        mlflow.log_params(config.flatten_and_stringify())
+
+        print(f"Found {len(multi_config)} configurations. Top-level run name: {mlflow.active_run().info.run_name}")
+
+        for run_config in multi_config:
+            # Extract run name from config differences
+            diff = run_config.diff(config)
+            run_name = ", ".join([f"{k.split('.')[-1]}={v[0]}" for k, v in diff.items()])
+            main(config=run_config, args=args, parent_run_id=mlflow.active_run().info.run_id, run_name=run_name)
+
         mlflow.end_run()
 
     else:
-        main(config=config, args=args)
+        main(config=config, args=args, run_name=args.run_name)
