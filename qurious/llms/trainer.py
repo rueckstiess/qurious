@@ -28,6 +28,7 @@ class Trainer:
         loggers: Optional[List[str | Callable]] = ["console"],
         experiment_name: Optional[str] = None,
         parent_run_id: Optional[str] = None,
+        run_name: Optional[str] = None,
     ):
         """
         Initialize the trainer.
@@ -73,9 +74,9 @@ class Trainer:
         if "mlflow" in self.loggers:
             mlflow.set_tracking_uri("http://127.0.0.1:5000")
             mlflow.set_experiment(experiment_name)
-            mlflow.start_run(parent_run_id=parent_run_id)
+            mlflow.start_run(parent_run_id=parent_run_id, nested=parent_run_id is not None, run_name=run_name)
             self.run_id = mlflow.active_run().info.run_id
-            mlflow.log_params(self.config.to_dict())
+            mlflow.log_params(self.config.flatten_and_stringify())
             print(f"MLFlow experiment '{experiment_name}' started with run name '{mlflow.active_run().info.run_name}'")
 
         # Move model to the appropriate device
@@ -438,6 +439,8 @@ class Trainer:
         Returns:
             Dict with training history (lists of metrics per epoch)
         """
+        timestamp = datetime.datetime.now()
+
         save_dir = self.config.paths.checkpoint_dir
         save_freq = self.config.training.save_interval
 
@@ -530,7 +533,18 @@ class Trainer:
                 mlflow.log_param("error", str(e))
             raise
         finally:
+            result = {
+                "history": history,
+                "best_epoch": best_epoch,
+                "best_metric_value": best_metric_value,
+                "experiment_name": self.experiment_name,
+                "runtime_secs": (datetime.datetime.now() - timestamp).total_seconds(),
+            }
+
             # Ensure MLFlow run is ended
             if "mlflow" in self.loggers:
                 mlflow.end_run()
-            return history
+                result["run_id"] = (self.run_id,)
+                result["run_name"] = mlflow.get_run(self.run_id).info.run_name
+
+            return result

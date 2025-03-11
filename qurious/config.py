@@ -9,15 +9,9 @@ from typing import Any, Dict, Generic, Iterator, List, Tuple, TypeVar, Union
 import numpy as np
 import yaml
 
+from qurious.utils import flatten_dict, process_leaf_values
+
 T = TypeVar("T")
-
-
-def process_leaf_values(data, fn):
-    """Process all leaf values in a config according to function fn."""
-    if isinstance(data, dict):
-        return {k: process_leaf_values(v, fn) for k, v in data.items()}
-    else:
-        return fn(data)
 
 
 def serialize_value(data: Any) -> Any:
@@ -30,8 +24,6 @@ def serialize_value(data: Any) -> Any:
         return f"linspace({data.start}, {data.stop}, {data.num})"
     if isinstance(data, LogSpace):
         return f"logspace({data.start}, {data.stop}, {data.num}, {data.base})"
-    if isinstance(data, str) and data.lower() in ["true", "false", "none"]:
-        return f"str({data.lower()})"
     return data
 
 
@@ -96,10 +88,11 @@ def deserialize_value(value: str) -> Any:
 
     # Check if the string might be a scientific notation number
     else:
-        try:
-            return float(value)
-        except Exception:
-            pass
+        if "e" in value.lower() or "." in value.lower():
+            try:
+                return float(value)
+            except Exception:
+                pass
         try:
             return json.loads(value)
         except Exception:
@@ -357,6 +350,10 @@ class DotDict:
 
         return result
 
+    def to_flat_dict(self) -> Dict[str, Any]:
+        """Convert to a flattened dictionary."""
+        return flatten_dict(self.to_dict())
+
 
 class Config(DotDict):
     """Configuration class for ML experiments."""
@@ -440,6 +437,18 @@ class Config(DotDict):
         """Save to a YAML file."""
         with open(file_path, "w") as f:
             f.write(self.to_yaml())
+
+    def to_dict(self, serialize_spaces: bool = True) -> Dict[str, Any]:
+        """Convert to a dictionary."""
+        d = super().to_dict()
+        if serialize_spaces:
+            return process_leaf_values(d, serialize_value)
+        return d
+
+    def flatten_and_stringify(self) -> Dict[str, Any]:
+        """Flatten the config and convert parameter spaces to string representations."""
+        str_dict = process_leaf_values(self.to_dict(), str)
+        return flatten_dict(str_dict)
 
     def merge(self, other: Union[Dict[str, Any], "Config"]) -> "Config":
         """Merge with another config or dictionary."""

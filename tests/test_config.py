@@ -219,6 +219,14 @@ class TestDotDict(unittest.TestCase):
         self.assertIsInstance(result["b"], dict)
         self.assertNotIsInstance(result["b"], DotDict)
 
+    def test_to_flat_dict(self):
+        """Test conversion to flat dictionary."""
+        d = DotDict({"a": 1, "b": {"c": 2, "d": {"e": 3}}})
+        result = d.to_flat_dict()
+
+        self.assertEqual(result, {"a": 1, "b.c": 2, "b.d.e": 3})
+        self.assertIsInstance(result, dict)
+
 
 class TestConfigSchema(unittest.TestCase):
     """Test cases for ConfigSchema class."""
@@ -553,6 +561,69 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(merged.model.heads, 12)  # Added
         self.assertEqual(merged.training.batch_size, 32)  # Unchanged
         self.assertEqual(merged.training.learning_rate, 0.001)  # Added
+
+    def test_to_dict_spaces(self):
+        """Test conversion to dictionary with parameter spaces"""
+        config = Config(
+            {
+                "model": {"type": "transformer", "dimensions": ListSpace([128, 256, 512])},
+                "training": {"batch_size": LinSpace(10, 20, 3)},
+            }
+        )
+
+        # Convert to dictionary without serialization
+        result = config.to_dict(serialize_spaces=False)
+
+        # Check types
+        self.assertIsInstance(result, dict)
+        self.assertIsInstance(result["model"], dict)
+        self.assertIsInstance(result["training"], dict)
+
+        # Check values
+        self.assertIsInstance(result["model"]["dimensions"], ListSpace)
+        self.assertEqual(list(result["model"]["dimensions"]), [128, 256, 512])
+        self.assertIsInstance(result["training"]["batch_size"], LinSpace)
+        self.assertEqual(list(result["training"]["batch_size"]), [10, 15, 20])
+
+        # Convert to dictionary with serialization
+        result = config.to_dict(serialize_spaces=True)
+
+        # Check types
+        self.assertIsInstance(result, dict)
+        self.assertIsInstance(result["model"], dict)
+        self.assertIsInstance(result["training"], dict)
+
+        # Check values
+        self.assertIsInstance(result["model"]["dimensions"], list)
+        self.assertEqual(result["model"]["dimensions"], [128, 256, 512])
+        self.assertIsInstance(result["training"]["batch_size"], str)
+        self.assertEqual(result["training"]["batch_size"], "linspace(10, 20, 3)")
+
+    def test_flatten_and_stringify(self):
+        """Test conversion to flattened dictionary and stringify parameters"""
+        config = Config(
+            {
+                "model": {"type": "transformer", "dimensions": ListSpace([128, 256, 512])},
+                "training": {"epochs": 5, "batch_size": LinSpace(10, 20, 3)},
+            }
+        )
+
+        # Convert to dictionary with serialization
+        result = config.flatten_and_stringify()
+
+        # Check types
+        self.assertIsInstance(result, dict)
+        self.assertSetEqual(
+            set(result.keys()), {"model.type", "model.dimensions", "training.batch_size", "training.epochs"}
+        )
+
+        # Check values
+        for k, v in result.items():
+            self.assertIsInstance(k, str)
+
+        self.assertEqual(result["model.dimensions"], "[128, 256, 512]")
+        self.assertEqual(result["training.batch_size"], "linspace(10, 20, 3)")
+        self.assertEqual(result["training.epochs"], "5")
 
     def test_diff(self):
         """Test config diffing."""
