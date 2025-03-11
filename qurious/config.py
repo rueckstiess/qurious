@@ -456,7 +456,9 @@ class Config(DotDict):
             elif value.startswith("LinSpace(") and value.endswith(")"):
                 linspace_str = value[len("LinSpace(") : -1]
                 try:
-                    params = [float(p.strip()) for p in linspace_str.split(",")]
+                    # Parse parameters as floats, which handles scientific notation correctly
+                    parts = [p.strip() for p in linspace_str.split(",")]
+                    params = [float(p) for p in parts]
                     if len(params) == 3:
                         return LinSpace(params[0], params[1], int(params[2]))
                 except Exception:
@@ -472,6 +474,13 @@ class Config(DotDict):
                         return LogSpace(params[0], params[1], int(params[2]))
                     elif len(params) == 4:
                         return LogSpace(params[0], params[1], int(params[2]), params[3])
+                except Exception:
+                    pass
+
+            # Check if the string might be a scientific notation number
+            elif "e" in value.lower() or "E" in value:
+                try:
+                    return float(value)
                 except Exception:
                     pass
 
@@ -597,6 +606,42 @@ class Config(DotDict):
 
         return result
 
+    @staticmethod
+    def _parse_string_value(value: str) -> Any:
+        """Parse a string value to the appropriate type.
+
+        This helper function is used to parse string values from environment variables,
+        command-line arguments, etc. It handles boolean literals, null values, scientific
+        notation, and tries to parse the value as JSON if possible.
+
+        Args:
+            value: The string value to parse
+
+        Returns:
+            The parsed value with the appropriate type
+        """
+        if value.lower() == "true":
+            return True
+        elif value.lower() == "false":
+            return False
+        elif value.lower() == "null" or value.lower() == "none":
+            return None
+        else:
+            # Try to parse as JSON
+            try:
+                return json.loads(value)
+            except Exception:
+                # Try to parse scientific notation
+                try:
+                    # Check if the string looks like scientific notation
+                    if "e" in value.lower() or "E" in value:
+                        return float(value)
+                    # Otherwise, keep as string
+                    return value
+                except Exception:
+                    # If all else fails, keep as string
+                    return value
+
     @classmethod
     def from_env(cls, prefix: str = "CONFIG_") -> "Config":
         """Create a Config from environment variables."""
@@ -607,18 +652,8 @@ class Config(DotDict):
                 config_key = key[len(prefix) :].lower()
                 config_keys = config_key.split("__")
 
-                # Convert value
-                if value.lower() == "true":
-                    parsed_value = True
-                elif value.lower() == "false":
-                    parsed_value = False
-                elif value.lower() == "null" or value.lower() == "none":
-                    parsed_value = None
-                else:
-                    try:
-                        parsed_value = json.loads(value)
-                    except Exception:
-                        parsed_value = value
+                # Parse the value
+                parsed_value = cls._parse_string_value(value)
 
                 # Build nested dict structure
                 current = config_data
@@ -655,18 +690,8 @@ class Config(DotDict):
                 key, value = param.split("=", 1)
                 keys = key.split(".")
 
-                # Convert value
-                if value.lower() == "true":
-                    parsed_value = True
-                elif value.lower() == "false":
-                    parsed_value = False
-                elif value.lower() == "null" or value.lower() == "none":
-                    parsed_value = None
-                else:
-                    try:
-                        parsed_value = json.loads(value)
-                    except Exception:
-                        parsed_value = value
+                # Parse the value
+                parsed_value = cls._parse_string_value(value)
 
                 # Build nested dict structure
                 current = config_data

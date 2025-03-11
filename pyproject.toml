@@ -48,11 +48,14 @@ extend-select = ["I"]
 dev = [
     "pytest>=7.0.0",
     "ipython>=8.0.0",
-    "skypilot[aws,gcp,lambda]==0.8.0",
+    "skypilot[aws,gcp,lambda]>=0.8.0",
     "pymongo>=4.8.0",
     "ruff>=0.9.0",
-    "mlflow==2.20.3",
+    "mlflow>=2.20.3",
     "setproctitle==1.2",
+    "ipykernel>=6.29.5",
+    "jupyter>=1.1.1",
+    "ipywidgets>=8.1.5"
 ]
 
 [project.urls]

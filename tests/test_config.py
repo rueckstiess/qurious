@@ -469,6 +469,32 @@ class TestConfig(unittest.TestCase):
         self.assertAlmostEqual(loaded_log_values[0], 1e-3)
         self.assertAlmostEqual(loaded_log_values[-1], 1e-1)
 
+    def test_parameter_spaces_scientific_notation(self):
+        """Test parameter spaces with scientific notation values."""
+        # Test with string values using scientific notation
+        yaml_str = """
+        spaces:
+          lin_space: "LinSpace(1e-4, 1e-2, 5)"
+          log_space: "LogSpace(1e-5, 1e-3, 3)"
+        """
+
+        config = Config.from_yaml(yaml_str)
+
+        # Check if the strings were correctly parsed into parameter spaces
+        self.assertIsInstance(config.spaces.lin_space, LinSpace)
+        self.assertIsInstance(config.spaces.log_space, LogSpace)
+
+        # Check the values
+        lin_values = list(config.spaces.lin_space)
+        self.assertEqual(len(lin_values), 5)
+        self.assertAlmostEqual(lin_values[0], 1e-4)
+        self.assertAlmostEqual(lin_values[-1], 1e-2)
+
+        log_values = list(config.spaces.log_space)
+        self.assertEqual(len(log_values), 3)
+        self.assertAlmostEqual(log_values[0], 1e-5)
+        self.assertAlmostEqual(log_values[-1], 1e-3)
+
     def test_merge(self):
         """Test merging configs."""
         config1 = Config({"model": {"type": "transformer", "dimensions": 512}, "training": {"batch_size": 32}})
@@ -558,6 +584,75 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.training.learning_rate, 0.001)
         self.assertEqual(config.boolean_value, True)
         self.assertEqual(config.json_value.key, "value")
+
+    def test_scientific_notation(self):
+        """Test handling of scientific notation in config values."""
+        # From command-line arguments
+        args = [
+            "--params",
+            "value1=1e-4",
+            "value2=1E-4",
+            "value3=1.5e-2",
+            "value4=1.5E+2",
+            "value5=1e10",
+        ]
+
+        config = Config.from_args(args)
+
+        # Check values are correctly converted to floats
+        self.assertEqual(config.value1, 0.0001)
+        self.assertEqual(config.value2, 0.0001)
+        self.assertEqual(config.value3, 0.015)
+        self.assertEqual(config.value4, 150.0)
+        self.assertEqual(config.value5, 1e10)
+
+        # From environment variables
+        os.environ["CONFIG_SCI_NOTATION1"] = "1e-4"
+        os.environ["CONFIG_SCI_NOTATION2"] = "1E-4"
+        os.environ["CONFIG_SCI_NOTATION3"] = "1.5e-2"
+        os.environ["CONFIG_SCI_NOTATION4"] = "1.5E+2"
+        os.environ["CONFIG_SCI_NOTATION5"] = "1e10"
+
+        try:
+            config = Config.from_env()
+
+            # Check values are correctly converted to floats
+            self.assertEqual(config.sci_notation1, 0.0001)
+            self.assertEqual(config.sci_notation2, 0.0001)
+            self.assertEqual(config.sci_notation3, 0.015)
+            self.assertEqual(config.sci_notation4, 150.0)
+            self.assertEqual(config.sci_notation5, 1e10)
+        finally:
+            # Clean up environment
+            for key in [
+                "CONFIG_SCI_NOTATION1",
+                "CONFIG_SCI_NOTATION2",
+                "CONFIG_SCI_NOTATION3",
+                "CONFIG_SCI_NOTATION4",
+                "CONFIG_SCI_NOTATION5",
+            ]:
+                if key in os.environ:
+                    del os.environ[key]
+
+    def test_scientific_notation_yaml(self):
+        """Test handling of scientific notation in YAML configs."""
+        yaml_str = """
+        learning_rates:
+          rate1: 1e-4
+          rate2: 1E-4
+          rate3: 1.5e-2
+          rate4: 1.5E+2
+          rate5: 1e10
+        """
+
+        config = Config.from_yaml(yaml_str)
+
+        # Check values are correctly converted to floats
+        self.assertEqual(config.learning_rates.rate1, 0.0001)
+        self.assertEqual(config.learning_rates.rate2, 0.0001)
+        self.assertEqual(config.learning_rates.rate3, 0.015)
+        self.assertEqual(config.learning_rates.rate4, 150.0)
+        self.assertEqual(config.learning_rates.rate5, 1e10)
 
 
 class TestConfigProduct(unittest.TestCase):

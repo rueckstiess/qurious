@@ -295,7 +295,7 @@ class Trainer:
 
             # log metrics every log_interval steps
             if train_steps % self.config.training.log_interval == 0:
-                self._log_metrics({"train_loss": step_result["loss"]}, train_steps)
+                self._log_metrics({"train_loss": step_metrics["loss"]}, train_steps)
 
             # Update progress bar with current loss
             pbar.set_postfix(loss=f"{step_metrics['train_loss']:.4f}")
