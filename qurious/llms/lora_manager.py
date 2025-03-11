@@ -77,7 +77,7 @@ class LoraManager:
 
     def _create_peft_config(self) -> PeftLoraConfig:
         """Convert our LoraConfig to PEFT's LoraConfig."""
-        return PeftLoraConfig(**self.lora_config.model_dump())
+        return PeftLoraConfig(**self.lora_config.to_dict())
 
     def _create_default_adapter(self) -> None:
         """Create the default LoRA adapter."""

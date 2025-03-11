@@ -8,7 +8,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-from qurious.config import TrainingConfig
+from qurious.config import Config
 from qurious.utils import auto_device
 
 
@@ -31,7 +31,7 @@ class Trainer:
         loss_fn: Callable,
         optimizer: Optional[torch.optim.Optimizer] = None,
         device: Optional[torch.device] = None,
-        train_config: TrainingConfig = None,
+        config: Config = None,
         scheduler: Optional[Any] = None,
         loggers: Optional[List[str | Callable]] = ["console"],
         experiment_name: Optional[str] = None,
@@ -45,11 +45,11 @@ class Trainer:
             optimizer: PyTorch optimizer (if None, uses Adam with default settings)
             loss_fn: Loss function (takes model output and targets, returns loss)
             device: Device to run training on (if None, auto-detected)
-            train_config: Configuration object containing training parameters
+            config: Configuration object containing training parameters
             scheduler: Optional learning rate scheduler
         """
         self.model = model
-        self.train_config = train_config
+        self.config = config
         if device is None:
             self.device = auto_device()
         elif device == "auto":
@@ -59,7 +59,7 @@ class Trainer:
 
         # Use provided optimizer or create default one
         default_lr = 1e-4  # Default learning rate if train_config is None
-        learning_rate = train_config.learning_rate if train_config is not None else default_lr
+        learning_rate = config.training.learning_rate if config is not None else default_lr
         self.optimizer = optimizer if optimizer is not None else self._get_default_optimizer(learning_rate)
 
         self.loss_fn = loss_fn
@@ -215,16 +215,17 @@ class Trainer:
         loss.backward()
 
         # Apply gradient clipping if specified in config
-        if self.train_config and hasattr(self.train_config, "max_grad_norm") and self.train_config.max_grad_norm > 0:
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.train_config.max_grad_norm)
+        if self.config and hasattr(self.config.training, "max_grad_norm") and self.config.training.max_grad_norm > 0:
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.training.max_grad_norm)
 
         self.optimizer.step()
 
         # Update learning rate if using a scheduler that steps per batch
         if (
             self.scheduler is not None
-            and hasattr(self.train_config, "scheduler_step_per_batch")
-            and self.train_config.scheduler_step_per_batch
+            and self.config is not None
+            and hasattr(self.config.training, "scheduler_step_per_batch")
+            and self.config.training.scheduler_step_per_batch
         ):
             self.scheduler.step()
 
@@ -278,7 +279,7 @@ class Trainer:
             train_steps += 1
 
             # log metrics every log_interval steps
-            if train_steps % self.train_config.log_interval == 0:
+            if train_steps % self.config.training.log_interval == 0:
                 self._log_metrics({"train_loss": step_result["loss"]}, train_steps)
 
             # Update progress bar with current loss
@@ -296,7 +297,7 @@ class Trainer:
 
         # Update learning rate scheduler if it steps per epoch
         if self.scheduler is not None and not (
-            hasattr(self.train_config, "scheduler_step_per_batch") and self.train_config.scheduler_step_per_batch
+            hasattr(self.config, "scheduler_step_per_batch") and self.config.scheduler_step_per_batch
         ):
             if hasattr(self.scheduler, "step_with_metrics"):
                 # Some schedulers like ReduceLROnPlateau need validation metrics
@@ -461,7 +462,7 @@ class Trainer:
             "epoch": epoch,
             "model_state_dict": self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
-            "config": self.train_config,
+            "config": self.config,
         }
 
         if self.scheduler is not None:
@@ -486,7 +487,7 @@ class Trainer:
         """
         # Note: In a production environment, you might want to use weights_only=True for security
         # but this requires additional configuration with torch.serialization.add_safe_globals
-        with torch.serialization.safe_globals([TrainingConfig]):
+        with torch.serialization.safe_globals([Config]):
             checkpoint = torch.load(path, map_location=self.device)
 
         self.model.load_state_dict(checkpoint["model_state_dict"])
