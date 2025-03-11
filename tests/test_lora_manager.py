@@ -5,28 +5,32 @@ import pytest
 import torch
 from peft import LoraConfig as PeftLoraConfig
 
-from qurious.config import Config, LoraConfig, ModelConfig, PathConfig
+from qurious.config import Config
 from qurious.llms.lora_manager import LoraManager
 
 
 # Create a fixture for a basic config
 @pytest.fixture
 def mock_config():
-    config = MagicMock(spec=Config)
-    config.model = MagicMock(spec=ModelConfig)
-    config.model.base_model = "mock-model/test"
-    config.model.device = "cpu"
-    config.model.lora_enabled = True
-    config.model.lora_config = MagicMock(spec=LoraConfig)
-    config.model.lora_config.r = 8
-    config.model.lora_config.lora_alpha = 16
-    config.model.lora_config.lora_dropout = 0.05
-    config.model.lora_config.target_modules = "all-linear"
-    config.model.lora_config.bias = "none"
-    config.model.lora_config.task_type = "CAUSAL_LM"
-
-    config.paths = MagicMock(spec=PathConfig)
-    config.paths.checkpoint_dir = "./test_checkpoints"
+    # Create a Config object with the expected structure
+    config = Config(
+        {
+            "model": {
+                "base_model": "mock-model/test",
+                "device": "cpu",
+                "lora_enabled": True,
+                "lora_config": {
+                    "r": 8,
+                    "lora_alpha": 16,
+                    "lora_dropout": 0.05,
+                    "target_modules": "all-linear",
+                    "bias": "none",
+                    "task_type": "CAUSAL_LM",
+                },
+            },
+            "paths": {"checkpoint_dir": "./test_checkpoints"},
+        }
+    )
     return config
 
 

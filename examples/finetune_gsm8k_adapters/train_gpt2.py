@@ -33,7 +33,7 @@ def train_simple_model():
         model=model,
         optimizer=optimizer,
         loss_fn=loss_fn,
-        train_config=config,
+        config=config,
     )
 
     # Train for 5 epochs
@@ -63,7 +63,7 @@ def train_lora_adapter():
     trainer = Trainer(
         model=model,
         loss_fn=loss_fn,
-        train_config=config.training,
+        config=config.training,
     )
 
     print("Before Training", trainer.evaluate(eval_dataloader))
@@ -100,7 +100,7 @@ def train_base_model():
         model=model,
         optimizer=optimizer,
         loss_fn=loss_fn,
-        train_config=config.training,
+        config=config.training,
         scheduler=scheduler,
     )
 

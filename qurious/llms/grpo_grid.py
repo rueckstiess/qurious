@@ -10,7 +10,7 @@ from transformers import (
 )
 from trl import GRPOConfig, GRPOTrainer, apply_chat_template
 
-from qurious.llms.config import Config
+from qurious.config import Config
 from qurious.llms.utils import (
     evaluate_model,
     extract_actions_from_responses,
@@ -19,7 +19,8 @@ from qurious.llms.utils import (
 )
 from qurious.utils import auto_device
 
-config = Config()
+# Initialize config from yaml file
+config = Config.from_yaml_file("./config.yaml")
 
 
 class CustomEvaluationCallback(TrainerCallback):
@@ -47,7 +48,7 @@ def main():
     log_dir = os.path.join("./logs", run_name)
 
     # Load model and tokenizer
-    model_name = config.base_model
+    model_name = config.model.base_model
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     # Ensure the tokenizer has a padding token
@@ -66,7 +67,7 @@ def main():
     # Define LoRA configuration - optimized for Mac
     lora_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
-        **config.peft_config,
+        **config.model.lora_config,
     )
 
     # Apply LoRA to the model
@@ -76,7 +77,7 @@ def main():
     # Load train/eval data and split
     dataset = load_dataset("mongodb", db="gridworld", collection="gridworld_10k")
     dataset = dataset["train"].train_test_split(test_size=0.05, seed=42)
-    dataset["eval"] = dataset["test"].shuffle(seed=42).select(range(config.max_eval_samples))
+    dataset["eval"] = dataset["test"].shuffle(seed=42).select(range(config.training.max_eval_samples))
 
     # convert to prompt-only format for GRPO, see https://huggingface.co/docs/trl/main/en/dataset_formats#which-dataset-type-to-use
     prompt_dataset = dataset.map(lambda example: {"prompt": example["messages"][:-1]}, remove_columns=["messages"])
@@ -90,7 +91,7 @@ def main():
         model=model,
         tokenizer=tokenizer,
         eval_dataset=dataset["eval"],
-        batch_size=config.sft_batch_size,
+        batch_size=config.training.sft_batch_size,
     )
 
     # Reward functions
@@ -140,7 +141,7 @@ def main():
 
     # Training arguments
     training_args = GRPOConfig(
-        output_dir=config.output_dir,
+        output_dir=config.paths.output_dir,
         num_train_epochs=1,
         learning_rate=3e-4,
         warmup_steps=100,
@@ -177,7 +178,9 @@ def main():
     # trainer.processing_class.pad_token = tokenizer.eos_token
 
     # Evaluate before training (max_eval_samples samples)
-    accuracy, distance, preds = evaluate_model(model, tokenizer, dataset["eval"], batch_size=config.sft_batch_size)
+    accuracy, distance, preds = evaluate_model(
+        model, tokenizer, dataset["eval"], batch_size=config.training.sft_batch_size
+    )
     print(f"Test accuracy before training: {accuracy:.4f}, avg distance: {distance:.4f}")
 
     # Train the model
@@ -192,7 +195,9 @@ def main():
     tokenizer.save_pretrained(output_dir)
 
     # Evaluate after training (full test set)
-    accuracy, distance, preds = evaluate_model(model, tokenizer, dataset["test"], batch_size=config.sft_batch_size)
+    accuracy, distance, preds = evaluate_model(
+        model, tokenizer, dataset["test"], batch_size=config.training.sft_batch_size
+    )
     print(f"Test accuracy after training: {accuracy:.4f}, avg distance: {distance:.4f}")
 
 
