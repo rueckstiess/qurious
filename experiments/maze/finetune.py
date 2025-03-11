@@ -21,7 +21,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["MLFLOW_TRACKING_URI"] = "http://localhost:5000"
 
 
-def main(config: Config, args: argparse.Namespace):
+def main(config: Config, args: argparse.Namespace, parent_run_id: str = None):
     print(f"Running with config:\n{config.to_yaml()}")
 
     # create new "text" column by concatenating "prompt" and "response" columns
@@ -104,9 +104,10 @@ def main(config: Config, args: argparse.Namespace):
         config=config,
         optimizer=optimizer,
         scheduler=scheduler,
-        loggers=["mlflow"],
+        loggers=["console" if args.debug else "mlflow"],
         experiment_name=args.experiment,
         loss_fn=loss_fn,
+        parent_run_id=parent_run_id,
     )
 
     # Load checkpoint if provided
@@ -168,9 +169,17 @@ def main(config: Config, args: argparse.Namespace):
     df = pd.DataFrame(results)
     print(df)
 
-    with mlflow.start_run(trainer.run_id):
-        mlflow.log_artifact(best_model_path, artifact_path="best_model.pt")
-        mlflow.log_table(df, artifact_file="generated_samples.json")
+    if not args.debug:
+        with mlflow.start_run(trainer.run_id):
+            mlflow.log_artifact(best_model_path, artifact_path="best_model.pt")
+            mlflow.log_table(df, artifact_file="generated_samples.json")
+    else:
+        print("Generated samples:\n")
+        for result in results:
+            print(f"Input: {result['input']}")
+            print(f"Generated: {result['generated']}")
+            print(f"Reference: {result['reference']}")
+            print("-" * 80)
 
 
 if __name__ == "__main__":
@@ -180,6 +189,7 @@ if __name__ == "__main__":
     parser.add_argument("--experiment", "-e", type=str, default="maze-supervised-finetune", help="Experiment name.")
     parser.add_argument("--resume", "-r", type=str, default=None, help="Path to the checkpoint to resume from.")
     parser.add_argument("--skip-training", action="store_true", help="Skip training and only generate outputs.")
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode (log to console instead of MLflow).")
     parser.add_argument("--params", "-p", nargs="+", default=[], help="Parameters to override in the config file.")
 
     args = parser.parse_args()
@@ -193,9 +203,14 @@ if __name__ == "__main__":
 
     multi_config = ConfigProduct(config)
     if len(multi_config) > 1:
+        # create top-level run in mlflow and pass parent_run_id to child runs
+        mlflow.set_experiment(args.experiment)
+        mlflow.start_run()
+        mlflow.log_params(config.to_dict())
         print(f"Found {len(multi_config)} configurations. Running all of them.")
         for config in multi_config:
-            main(config=config, args=args)
+            main(config=config, args=args, parent_run_id=mlflow.active_run().info.run_id)
+        mlflow.end_run()
 
     else:
         main(config=config, args=args)

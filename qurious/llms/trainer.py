@@ -27,7 +27,7 @@ class Trainer:
         scheduler: Optional[Any] = None,
         loggers: Optional[List[str | Callable]] = ["console"],
         experiment_name: Optional[str] = None,
-        run_name: Optional[str] = None,
+        parent_run_id: Optional[str] = None,
     ):
         """
         Initialize the trainer.
@@ -73,7 +73,7 @@ class Trainer:
         if "mlflow" in self.loggers:
             mlflow.set_tracking_uri("http://127.0.0.1:5000")
             mlflow.set_experiment(experiment_name)
-            mlflow.start_run(run_name=run_name)
+            mlflow.start_run(parent_run_id=parent_run_id)
             self.run_id = mlflow.active_run().info.run_id
             mlflow.log_params(self.config.to_dict())
             print(f"MLFlow experiment '{experiment_name}' started with run name '{mlflow.active_run().info.run_name}'")
@@ -481,7 +481,7 @@ class Trainer:
                         if save_dir:
                             self._save_checkpoint(os.path.join(save_dir, "best_model.pt"), best_metric_value)
                             self.logger.info(
-                                f"Best model ({best_model_metric}={best_metric_value}) saved at epoch {self.epoch}"
+                                f"Best model ({best_model_metric}={best_metric_value:.4f}) saved at epoch {self.epoch}"
                             )
                 else:  # Maximize other metrics (accuracy, f1, etc.)
                     if current_metric > best_metric_value:
