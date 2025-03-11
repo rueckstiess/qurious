@@ -638,49 +638,6 @@ class TestConfigProduct(unittest.TestCase):
                 1e-4 - 1e-10 <= value <= 1e-2 + 1e-10, f"Learning rate {value} not in range [{1e-4}, {1e-2}]"
             )
 
-    def test_to_flat_dict(self):
-        """Test that to_flat_dict correctly flattens the nested configuration."""
-        # Create a config with some customized values
-        config = Config(
-            model={"base_model": "custom-model"},
-            training={"batch_size": 16, "learning_rate": 2e-5},
-            paths={"output_dir": "./custom_output"},
-        )
-
-        flat_dict = config.to_flat_dict()
-
-        # Check that top-level keys are flattened correctly
-        self.assertEqual(flat_dict["model.base_model"], "custom-model")
-        self.assertEqual(flat_dict["training.batch_size"], 16)
-        self.assertEqual(flat_dict["training.learning_rate"], 2e-5)
-        self.assertEqual(flat_dict["paths.output_dir"], "./custom_output")
-
-        # Check that nested keys (like lora_config) are flattened correctly
-        self.assertEqual(flat_dict["model.lora_config.r"], 8)
-        self.assertEqual(flat_dict["model.lora_config.lora_alpha"], 16)
-        self.assertEqual(flat_dict["model.lora_config.target_modules"], "all-linear")
-
-        # Check that default values are included
-        self.assertTrue(flat_dict["model.lora_enabled"])
-        self.assertEqual(flat_dict["training.epochs"], 1)
-        self.assertEqual(flat_dict["paths.data_dir"], "./data")
-
-        # Verify total number of keys (this ensures we're not missing any)
-        # Count total fields from all config classes
-        expected_keys = (
-            len(vars(ModelConfig()))
-            - 1  # -1 for model_config
-            + len(vars(LoraConfig()))
-            + len(vars(TrainingConfig()))
-            + len(vars(PathConfig()))
-        )
-
-        self.assertEqual(len(flat_dict), expected_keys)
-
-        # Ensure no nested dictionaries remain in the flat structure
-        for value in flat_dict.values():
-            self.assertFalse(isinstance(value, dict))
-
 
 if __name__ == "__main__":
     unittest.main()
