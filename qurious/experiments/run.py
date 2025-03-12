@@ -4,10 +4,10 @@ import uuid
 
 import mlflow
 
-from qurious.experiments.logger import ConsoleLogger, FileLogger, Logger, MLflowLogger
+from qurious.experiments.tracker import ConsoleTracker, FileTracker, MLflowTracker, Tracker
 
 
-class Run(Logger):
+class Run(Tracker):
     def __init__(self, experiment_name, config, run_name=None, parent_run_id=None, log_to=None):
         self.experiment_name = experiment_name
         self.config = config
@@ -67,13 +67,13 @@ class Run(Logger):
         self.loggers = []
 
         if "console" in self.log_to:
-            self.loggers.append(ConsoleLogger())
+            self.loggers.append(ConsoleTracker())
         if "file" in self.log_to:
             log_dir = f"logs/{self.experiment_name}/{self.run_name}"
             os.makedirs(log_dir, exist_ok=True)
-            self.loggers.append(FileLogger(f"{log_dir}/run.log"))
+            self.loggers.append(FileTracker(f"{log_dir}/run.log"))
         if "mlflow" in self.log_to:
-            self.loggers.append(MLflowLogger(self.experiment_name))
+            self.loggers.append(MLflowTracker(self.experiment_name))
 
         pass
 

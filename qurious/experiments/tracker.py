@@ -3,9 +3,10 @@ import shutil
 from datetime import datetime
 
 import mlflow
+from loguru import logger
 
 
-class Logger:
+class Tracker:
     # define log levels as enums
     INFO = "info"
     WARNING = "warning"
@@ -37,7 +38,7 @@ class Logger:
         pass
 
 
-class ConsoleLogger(Logger):
+class ConsoleTracker(Tracker):
     def log(self, level, message):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print(f"[{level.upper()}] {timestamp} - {message}")
@@ -55,7 +56,7 @@ class ConsoleLogger(Logger):
         print(f"[ARTIFACT] Logged {local_path} to {artifact_path}")
 
 
-class FileLogger(Logger):
+class FileTracker(Tracker):
     def __init__(self, file_path):
         self.file_path = file_path
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -91,7 +92,7 @@ class FileLogger(Logger):
             self.file.close()
 
 
-class MLflowLogger(Logger):
+class MLflowTracker(Tracker):
     def __init__(self, experiment_name):
         self.experiment_name = experiment_name
         self.active_run = mlflow.active_run()
