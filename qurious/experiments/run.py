@@ -4,7 +4,7 @@ import uuid
 
 import mlflow
 
-from qurious.experiments.logging import ConsoleLogger, FileLogger, Logger, MLflowLogger
+from qurious.experiments.logger import ConsoleLogger, FileLogger, Logger, MLflowLogger
 
 
 class Run(Logger):
@@ -105,7 +105,7 @@ class Run(Logger):
             self.run_id = str(uuid.uuid4().hex)
             self.run_name = self.run_name or f"run-{self.run_id[:8]}"
 
-        self.info(f"Started{' nested' if self.parent_run_id else ''} run {self.run_name} (ID: {self.run_id})")
+        self.info(f"Starting{' nested' if self.parent_run_id else ''} run {self.run_name} (ID: {self.run_id})")
         return self
 
     def end(self):

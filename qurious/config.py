@@ -533,9 +533,15 @@ class Config(DotDict):
         """Create a Config from command-line arguments."""
         config_data = {}
 
-        # Load from file if specified
-        if "config" in args:
-            config_data = cls.from_yaml_file(args.config).to_dict()
+        # Load from file if specified and file exists
+        if "config" in args and args.config:
+            if not os.path.exists(args.config):
+                import warnings
+
+                warnings.warn(f"Config file '{args.config}' not found. Resuming with empty config.")
+            else:
+                # Load the config file
+                config_data = cls.from_yaml_file(args.config).to_dict()
 
         # Override with key-value pairs
         if args.params:

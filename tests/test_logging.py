@@ -5,7 +5,7 @@ from datetime import datetime
 from unittest import mock
 
 # Now import the logging modules
-from qurious.experiments.logging import ConsoleLogger, FileLogger, Logger, MLflowLogger
+from qurious.experiments.logger import ConsoleLogger, FileLogger, Logger, MLflowLogger
 
 
 class TestLoggerBase(unittest.TestCase):
@@ -52,7 +52,7 @@ class TestConsoleLogger(unittest.TestCase):
     @mock.patch("builtins.print")
     def test_log(self, mock_print):
         """Test log method prints correctly formatted message."""
-        with mock.patch("qurious.experiments.logging.datetime") as mock_datetime:
+        with mock.patch("qurious.experiments.logger.datetime") as mock_datetime:
             mock_datetime.now.return_value = datetime(2025, 3, 12, 10, 30, 0)
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
 
@@ -110,7 +110,7 @@ class TestFileLogger(unittest.TestCase):
 
     def test_log_writes_correctly(self):
         """Test that log method writes correctly formatted message."""
-        with mock.patch("qurious.experiments.logging.datetime") as mock_datetime:
+        with mock.patch("qurious.experiments.logger.datetime") as mock_datetime:
             mock_datetime.now.return_value = datetime(2025, 3, 12, 10, 30, 0)
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
 
