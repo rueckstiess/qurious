@@ -27,13 +27,13 @@ class Logger:
     def debug(self, message):
         self.log(self.DEBUG, message)
 
-    def metrics(self, metrics, step=None):
+    def log_metrics(self, metrics, step=None):
         pass
 
-    def metric(self, key, value, step=None):
-        self.metrics({key: value}, step=step)
+    def log_metric(self, key, value, step=None):
+        self.log_metrics({key: value}, step=step)
 
-    def artifact(self, local_path, artifact_path=None):
+    def log_artifact(self, local_path, artifact_path=None):
         pass
 
 
@@ -42,14 +42,14 @@ class ConsoleLogger(Logger):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print(f"[{level.upper()}] {timestamp} - {message}")
 
-    def metrics(self, metrics, step=None):
+    def log_metrics(self, metrics, step=None):
         metrics_str = " | ".join([f"{k}={v}" for k, v in metrics.items()])
         if step is not None:
             print(f"[METRICS] Step {step} - {metrics_str}")
         else:
             print(f"[METRICS] {metrics_str}")
 
-    def artifact(self, local_path, artifact_path=None):
+    def log_artifact(self, local_path, artifact_path=None):
         if artifact_path is None:
             artifact_path = os.path.basename(local_path)
         print(f"[ARTIFACT] Logged {local_path} to {artifact_path}")
@@ -66,7 +66,7 @@ class FileLogger(Logger):
         self.file.write(f"[{level.upper()}] {timestamp} - {message}\n")
         self.file.flush()
 
-    def metrics(self, metrics, step=None):
+    def log_metrics(self, metrics, step=None):
         metrics_str = " | ".join([f"{k}={v}" for k, v in metrics.items()])
         if step is not None:
             self.file.write(f"[METRICS] Step {step} - {metrics_str}\n")
@@ -74,7 +74,7 @@ class FileLogger(Logger):
             self.file.write(f"[METRICS] {metrics_str}\n")
         self.file.flush()
 
-    def artifact(self, local_path, artifact_path=None):
+    def log_artifact(self, local_path, artifact_path=None):
         if artifact_path is None:
             artifact_path = os.path.basename(local_path)
 
@@ -100,14 +100,14 @@ class MLflowLogger(Logger):
         # MLflow does not support logging levels directly
         pass
 
-    def metric(self, key, value, step=None):
+    def log_metric(self, key, value, step=None):
         if self.active_run:
             mlflow.log_metric(key, value, step)
 
-    def metrics(self, metrics, step=None):
+    def log_metrics(self, metrics, step=None):
         if self.active_run:
             mlflow.log_metrics(metrics, step)
 
-    def artifact(self, local_path, artifact_path=None):
+    def log_artifact(self, local_path, artifact_path=None):
         if self.active_run:
             mlflow.log_artifact(local_path, artifact_path)

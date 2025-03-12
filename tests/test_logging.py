@@ -34,13 +34,13 @@ class TestLoggerBase(unittest.TestCase):
         """Test that metric calls metrics with a single key-value pair."""
         # Create a mock of Logger for testing
         logger = Logger()
-        logger.metrics = mock.MagicMock()
+        logger.log_metrics = mock.MagicMock()
 
         # Ensure the mock has the abstract methods implemented
-        logger.metrics = mock.MagicMock()
+        logger.log_metrics = mock.MagicMock()
 
-        logger.metric("accuracy", 0.95, step=10)
-        logger.metrics.assert_called_with({"accuracy": 0.95}, step=10)
+        logger.log_metric("accuracy", 0.95, step=10)
+        logger.log_metrics.assert_called_with({"accuracy": 0.95}, step=10)
 
 
 class TestConsoleLogger(unittest.TestCase):
@@ -62,7 +62,7 @@ class TestConsoleLogger(unittest.TestCase):
     @mock.patch("builtins.print")
     def test_metrics_with_step(self, mock_print):
         """Test metrics method with step prints correctly."""
-        self.console_logger.metrics({"accuracy": 0.95, "loss": 0.1}, step=10)
+        self.console_logger.log_metrics({"accuracy": 0.95, "loss": 0.1}, step=10)
 
         # Since we don't know the order of the metrics in the string
         call_args = mock_print.call_args[0][0]
@@ -73,7 +73,7 @@ class TestConsoleLogger(unittest.TestCase):
     @mock.patch("builtins.print")
     def test_metrics_without_step(self, mock_print):
         """Test metrics method without step prints correctly."""
-        self.console_logger.metrics({"accuracy": 0.95, "loss": 0.1})
+        self.console_logger.log_metrics({"accuracy": 0.95, "loss": 0.1})
 
         call_args = mock_print.call_args[0][0]
         self.assertTrue(call_args.startswith("[METRICS] "))
@@ -83,11 +83,11 @@ class TestConsoleLogger(unittest.TestCase):
     @mock.patch("builtins.print")
     def test_artifact(self, mock_print):
         """Test artifact method prints correct message."""
-        self.console_logger.artifact("/path/to/local/file.txt", "artifacts/file.txt")
+        self.console_logger.log_artifact("/path/to/local/file.txt", "artifacts/file.txt")
         mock_print.assert_called_with("[ARTIFACT] Logged /path/to/local/file.txt to artifacts/file.txt")
 
         # Test with default artifact path
-        self.console_logger.artifact("/path/to/local/file.txt")
+        self.console_logger.log_artifact("/path/to/local/file.txt")
         mock_print.assert_called_with("[ARTIFACT] Logged /path/to/local/file.txt to file.txt")
 
 
@@ -122,7 +122,7 @@ class TestFileLogger(unittest.TestCase):
 
     def test_metrics_with_step(self):
         """Test metrics method with step writes correctly."""
-        self.file_logger.metrics({"accuracy": 0.95, "loss": 0.1}, step=10)
+        self.file_logger.log_metrics({"accuracy": 0.95, "loss": 0.1}, step=10)
 
         with open(self.log_path, "r") as f:
             content = f.read()
@@ -132,7 +132,7 @@ class TestFileLogger(unittest.TestCase):
 
     def test_metrics_without_step(self):
         """Test metrics method without step writes correctly."""
-        self.file_logger.metrics({"accuracy": 0.95, "loss": 0.1})
+        self.file_logger.log_metrics({"accuracy": 0.95, "loss": 0.1})
 
         with open(self.log_path, "r") as f:
             content = f.read()
@@ -149,7 +149,7 @@ class TestFileLogger(unittest.TestCase):
 
         # Log the artifact
         artifact_path = "artifacts/copied_file.txt"
-        self.file_logger.artifact(test_file_path, artifact_path)
+        self.file_logger.log_artifact(test_file_path, artifact_path)
 
         # Check that the file was copied
         expected_artifact_path = os.path.join(os.path.dirname(self.log_path), artifact_path)
@@ -173,7 +173,7 @@ class TestFileLogger(unittest.TestCase):
             f.write("test content")
 
         # Log the artifact with default path
-        self.file_logger.artifact(test_file_path)
+        self.file_logger.log_artifact(test_file_path)
 
         # Check that the file was copied with default name
         expected_artifact_path = os.path.join(os.path.dirname(self.log_path), "testfile.txt")
@@ -191,7 +191,7 @@ class TestMLflowLogger(unittest.TestCase):
     def test_metric(self, mock_log_metric):
         """Test metric method calls mlflow.log_metric."""
         with mock.patch.object(self.mlflow_logger, "active_run", mock.MagicMock(return_value=True)):
-            self.mlflow_logger.metric("accuracy", 0.95, step=10)
+            self.mlflow_logger.log_metric("accuracy", 0.95, step=10)
             mock_log_metric.assert_called_with("accuracy", 0.95, 10)
 
     @mock.patch("mlflow.log_metrics")
@@ -199,28 +199,28 @@ class TestMLflowLogger(unittest.TestCase):
         """Test metrics method calls mlflow.log_metrics."""
         with mock.patch.object(self.mlflow_logger, "active_run", mock.MagicMock(return_value=True)):
             metrics = {"accuracy": 0.95, "loss": 0.1}
-            self.mlflow_logger.metrics(metrics, step=10)
+            self.mlflow_logger.log_metrics(metrics, step=10)
             mock_log_metrics.assert_called_with(metrics, 10)
 
     @mock.patch("mlflow.log_artifact")
     def test_artifact(self, mock_log_artifact):
         """Test artifact method calls mlflow.log_artifact."""
         with mock.patch.object(self.mlflow_logger, "active_run", mock.MagicMock(return_value=True)):
-            self.mlflow_logger.artifact("/path/to/file.txt", "artifacts")
+            self.mlflow_logger.log_artifact("/path/to/file.txt", "artifacts")
             mock_log_artifact.assert_called_with("/path/to/file.txt", "artifacts")
 
     @mock.patch("mlflow.log_artifact")
     def test_artifact_default_path(self, mock_log_artifact):
         """Test artifact method with default path."""
         with mock.patch.object(self.mlflow_logger, "active_run", mock.MagicMock(return_value=True)):
-            self.mlflow_logger.artifact("/path/to/file.txt")
+            self.mlflow_logger.log_artifact("/path/to/file.txt")
             mock_log_artifact.assert_called_with("/path/to/file.txt", None)
 
     @mock.patch("mlflow.log_metric")
     def test_no_active_run(self, mock_log_metric):
         """Test that methods do nothing when no active run."""
         with mock.patch.object(self.mlflow_logger, "active_run", None):
-            self.mlflow_logger.metric("accuracy", 0.95)
+            self.mlflow_logger.log_metric("accuracy", 0.95)
             mock_log_metric.assert_not_called()
 
 
