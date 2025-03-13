@@ -2,7 +2,6 @@ import datetime
 import os
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import mlflow
 import torch
 from loguru import logger
 from torch.utils.data import DataLoader
