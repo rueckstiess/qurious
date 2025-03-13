@@ -1,7 +1,5 @@
-import pytest
-
-from qurious.experiments import BaseExperiment, Run
 from qurious.config import Config
+from qurious.experiments import Run
 
 
 class TestRun:

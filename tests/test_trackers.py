@@ -1,9 +1,7 @@
 import os
-import sys
 import tempfile
 from unittest.mock import MagicMock, call, patch
 
-import pytest
 from loguru import logger
 
 from qurious.experiments.tracker import ConsoleTracker, FileTracker, MLflowTracker, Tracker
