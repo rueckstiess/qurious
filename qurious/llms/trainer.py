@@ -364,7 +364,8 @@ class Trainer:
         """
         path = os.path.join(self.checkpoint_dir, path) if self.checkpoint_dir else path
 
-        if not path.endswith(".pt"):
+        # if path is directory, load huggingface model
+        if os.path.isdir(path):
             # Load Hugging Face model
             self.model = AutoModelForCausalLM.from_pretrained(
                 path,
