@@ -14,6 +14,7 @@ from tqdm import tqdm
 from qurious.experiments import BaseExperiment, Run
 from qurious.llms.lora_manager import LoraManager
 from qurious.llms.trainer import Trainer
+from qurious.rl.environments.grid_world.utils import evaluate_model
 
 # Env variables
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -110,66 +111,73 @@ class FineTuneLLMsOnMazes(BaseExperiment):
             run=run,
         )
 
-        # # Load checkpoint if provided
-        # if args.resume:
-        #     checkpoint_path = Path(config.paths.checkpoint_dir) / args.resume
-        #     trainer.load_checkpoint(checkpoint_path, load_optimizer=True, load_scheduler=True)
-        #     print("Resuming from checkpoint:", checkpoint_path)
+        # evaluate model before training
+        accuracy, predictions = evaluate_model(peft_model, tokenizer, dataset["test"])
+        run.log_metrics({"accuracy": accuracy}, 0)
 
-        # if not args.skip_training:
         result = trainer.train(
             train_dataloader=train_dataloader, eval_dataloader=eval_dataloader, num_epochs=config.training.epochs
         )
         run.log_info(f"Training result: {result}")
 
         # Loading best model
-        # best_model_path = str(Path(config.paths.checkpoint_dir) / "best_model.pt")
-        # trainer.load_checkpoint(best_model_path, load_optimizer=False, load_scheduler=False)
+        run.log_info("Loading best model")
+        trainer.load_checkpoint("best_model.pt", load_optimizer=False, load_scheduler=False)
 
-        # ## Generate outputs
+        # evaluate model after training
+        accuracy, predictions = evaluate_model(peft_model, tokenizer, dataset["test"])
+        run.log_metrics({"accuracy": accuracy}, trainer.step)
 
-        eval_samples = dataset["test"].select(range(10))
-        # model = lora_manager.get_base_model()
-        # model = peft_model
-        model = trainer.model
+        # create table of predictions and references
+        dataset["test"] = dataset["test"].add_column("predictions", predictions)
+        df = dataset["test"].to_pandas()
 
-        # Generate outputs
-        results = []
-        for sample in tqdm(eval_samples):
-            # Assuming your dataset has 'input' and 'target' fields
-            # Adjust the field names as needed for your specific dataset
-            input_text = sample["prompt"]
-            reference = sample["response"]
+        run.log_info(f"\n{df[['env', 'actions', 'predictions']]}")
 
-            # Tokenize and generate
-            inputs = tokenizer(
-                input_text,
-                return_tensors="pt",
-            ).to(model.device)
+        # Update the style of the table
 
-            with torch.no_grad():
-                outputs = model.generate(
-                    **inputs,
-                    max_new_tokens=20,  # Adjust as needed
-                    do_sample=True,
-                    temperature=0.3,
-                    top_p=0.9,
-                    pad_token_id=tokenizer.eos_token_id,
-                )
+        # eval_samples = dataset["test"].select(range(10))
+        # # model = lora_manager.get_base_model()
+        # # model = peft_model
+        # model = trainer.model
 
-            # Decode the generated output
-            generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        # # Generate outputs
+        # results = []
+        # for sample in tqdm(eval_samples):
+        #     # Assuming your dataset has 'input' and 'target' fields
+        #     # Adjust the field names as needed for your specific dataset
+        #     input_text = sample["prompt"]
+        #     reference = sample["response"]
 
-            # Extract only the newly generated part (optional)
-            # This is model and tokenizer specific, you may need to adjust
-            generated_response = generated_text[
-                len(tokenizer.decode(inputs["input_ids"][0], skip_special_tokens=True)) :
-            ]
+        #     # Tokenize and generate
+        #     inputs = tokenizer(
+        #         input_text,
+        #         return_tensors="pt",
+        #     ).to(model.device)
 
-            results.append({"input": input_text, "generated": generated_response, "reference": reference})
+        #     with torch.no_grad():
+        #         outputs = model.generate(
+        #             **inputs,
+        #             max_new_tokens=20,  # Adjust as needed
+        #             do_sample=True,
+        #             temperature=0.3,
+        #             top_p=0.9,
+        #             pad_token_id=tokenizer.eos_token_id,
+        #         )
 
-        df = pd.DataFrame(results)
-        run.log_info(f"\n{df}")
+        #     # Decode the generated output
+        #     generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+        #     # Extract only the newly generated part (optional)
+        #     # This is model and tokenizer specific, you may need to adjust
+        #     generated_response = generated_text[
+        #         len(tokenizer.decode(inputs["input_ids"][0], skip_special_tokens=True)) :
+        #     ]
+
+        #     results.append({"input": input_text, "generated": generated_response, "reference": reference})
+
+        # df = pd.DataFrame(results)
+        # run.log_info(f"\n{df}")
 
 
 if __name__ == "__main__":

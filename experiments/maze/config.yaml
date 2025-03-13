@@ -15,7 +15,7 @@ model:
     task_type: CAUSAL_LM
 paths:
   checkpoint_dir: ./checkpoints
-  data_dir: ../../data
+  data_path: ../../data/grid_world_1k.jsonl
 training:
   batch_size: 4
   epochs: 3

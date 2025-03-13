@@ -62,6 +62,14 @@ class Trainer:
         self.epoch = 0
         self.run = run
 
+        if self.config.paths.checkpoint_dir:
+            if self.run is not None:
+                self.checkpoint_dir = os.path.join(self.run.run_path, self.config.paths.checkpoint_dir)
+            else:
+                self.checkpoint_dir = self.config.paths.checkpoint_dir
+        else:
+            self.checkpoint_dir = None
+
         # Move model to the appropriate device
         self.model.to(self.device)
 
@@ -192,6 +200,16 @@ class Trainer:
             self.scheduler.step()
 
         self.step += 1
+
+        # Regular checkpoint saving
+        if (
+            self.checkpoint_dir
+            and self.config.training.save_interval > 0
+            and (self.epoch + 1) % self.config.training.save_interval == 0
+        ):
+            self._save_checkpoint(f"checkpoint_step_{self.step}.pt")
+            logger.info(f"Checkpoint saved at step {self.step}")
+
         return {"train_loss": loss.item()}
 
     def eval_step(self, batch: Any) -> Dict[str, float]:
@@ -296,7 +314,7 @@ class Trainer:
         avg_loss = total_loss / steps if steps > 0 else 0
         return {"eval_loss": avg_loss, "epoch": self.epoch}
 
-    def _save_checkpoint(self, path: str, metric_value: Optional[float] = None) -> None:
+    def _save_checkpoint(self, name: str, metric_value: Optional[float] = None) -> None:
         """
         Save a model checkpoint.
 
@@ -318,6 +336,7 @@ class Trainer:
         if metric_value is not None:
             checkpoint["metric_value"] = metric_value
 
+        path = os.path.join(self.checkpoint_dir, name)
         torch.save(checkpoint, path)
 
     def load_checkpoint(self, path: str, load_optimizer: bool = True, load_scheduler: bool = True) -> int:
@@ -332,6 +351,8 @@ class Trainer:
         Returns:
             The epoch number from the checkpoint
         """
+        path = os.path.join(self.checkpoint_dir, path) if self.checkpoint_dir else path
+
         if not os.path.exists(path):
             raise FileNotFoundError(f"Checkpoint file not found: {path}")
 
@@ -385,16 +406,9 @@ class Trainer:
         """
         timestamp = datetime.datetime.now()
 
-        if self.run is not None:
-            checkpoint_dir = os.path.join(self.run.run_path, self.config.paths.checkpoint_dir)
-        else:
-            checkpoint_dir = self.config.paths.checkpoint_dir
-
-        save_freq = self.config.training.save_interval
-
         # Create save directory if needed
-        if checkpoint_dir and not os.path.exists(checkpoint_dir):
-            os.makedirs(checkpoint_dir)
+        if self.checkpoint_dir:
+            os.makedirs(self.checkpoint_dir, exist_ok=True)
 
         # Initialize tracking variables
         history = {"train_loss": []}
@@ -429,8 +443,8 @@ class Trainer:
                         is_improvement = True
 
                         # Save best model
-                        if checkpoint_dir:
-                            self._save_checkpoint(os.path.join(checkpoint_dir, "best_model.pt"), best_metric_value)
+                        if self.checkpoint_dir:
+                            self._save_checkpoint("best_model.pt", best_metric_value)
                             logger.info(
                                 f"Best model ({best_model_metric}={best_metric_value:.4f}) saved at epoch {self.epoch}"
                             )
@@ -441,17 +455,11 @@ class Trainer:
                         is_improvement = True
 
                         # Save best model
-                        if checkpoint_dir:
-                            self._save_checkpoint(os.path.join(checkpoint_dir, "best_model.pt"), best_metric_value)
+                        if self.checkpoint_dir:
+                            self._save_checkpoint("best_model.pt", best_metric_value)
                             logger.info(
                                 f"Best model ({best_model_metric}={best_metric_value}) saved at epoch {self.epoch}"
                             )
-
-                # Regular checkpoint saving
-                if checkpoint_dir and save_freq > 0 and (self.epoch + 1) % save_freq == 0:
-                    checkpoint_path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{self.epoch}.pt")
-                    self._save_checkpoint(checkpoint_path)
-                    logger.info(f"Checkpoint saved at epoch {self.epoch}")
 
                 # Early stopping check
                 if early_stopping_patience is not None:
