@@ -140,7 +140,9 @@ class Run:
         self._setup_logging()
         self._save_run_info()
 
-        logger.info(f"=== Starting{' nested' if self.parent_run_id else ''} run <magenta>{self.run_name}</> ===")
+        logger.opt(colors=True).info(
+            f"=== Starting{' nested' if self.parent_run_id else ''} run <magenta>{self.run_name}</> ==="
+        )
         return self
 
     def end(self):
