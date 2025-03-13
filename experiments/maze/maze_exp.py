@@ -1,15 +1,11 @@
 import os
-from pathlib import Path
 
-import pandas as pd
-import torch
 from datasets import load_dataset
 from loguru import logger
 from torch.nn import CrossEntropyLoss
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LinearLR
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 
 from qurious.experiments import BaseExperiment, Run
 from qurious.llms.lora_manager import LoraManager
