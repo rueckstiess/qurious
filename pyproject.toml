@@ -24,7 +24,8 @@ dependencies = [
     "transformers>=4.49.0",
     "scikit-learn>=1.6.1",
     "peft>=0.14.0",
-    "datasets>=3.3.2"
+    "datasets>=3.3.2",
+    "loguru>=0.7.0"
 ]
 
 [tool.setuptools.packages.find]

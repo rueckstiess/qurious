@@ -1,10 +1,10 @@
 import datetime
-import logging
 import os
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import mlflow
 import torch
+from loguru import logger
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
@@ -25,7 +25,7 @@ class Trainer:
         device: Optional[torch.device] = None,
         config: Config = None,
         scheduler: Optional[Any] = None,
-        loggers: Optional[List[str | Callable]] = ["console"],
+        trackers: Optional[List[str | Callable]] = ["console"],
         experiment_name: Optional[str] = None,
         parent_run_id: Optional[str] = None,
         run_name: Optional[str] = None,
@@ -40,7 +40,7 @@ class Trainer:
             device: Device to run training on (if None, auto-detected)
             config: Configuration object containing training parameters
             scheduler: Optional learning rate scheduler
-            loggers: List of loggers to use (e.g., "console", "mlflow")
+            trackers: List of trackers to use (e.g. "mlflow")
             experiment_name: Name of the MLFlow experiment
             run_name: Name of the MLFlow run
         """
@@ -60,7 +60,7 @@ class Trainer:
 
         self.loss_fn = loss_fn
         self.scheduler = scheduler
-        self.loggers = loggers
+        self.trackers = trackers
 
         self.step = 0
         self.epoch = 0
@@ -71,7 +71,7 @@ class Trainer:
         self.run_id = None
 
         # set up mlflow logging if specified
-        if "mlflow" in self.loggers:
+        if "mlflow" in self.trackers:
             mlflow.set_tracking_uri("http://127.0.0.1:5000")
             mlflow.set_experiment(experiment_name)
             mlflow.start_run(parent_run_id=parent_run_id, nested=parent_run_id is not None, run_name=run_name)
@@ -81,14 +81,6 @@ class Trainer:
 
         # Move model to the appropriate device
         self.model.to(self.device)
-
-        # Set up logging
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.INFO)
-        if not self.logger.handlers:
-            handler = logging.StreamHandler()
-            handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
-            self.logger.addHandler(handler)
 
     def _get_default_optimizer(self, learning_rate: float) -> torch.optim.Optimizer:
         """
@@ -179,7 +171,7 @@ class Trainer:
     def _log_metrics(self, metrics: Dict[str, float]) -> None:
         """
         Log metrics to MLFlow and/or to the console.
-        If self.loggers contains a callable, it will be called with (self, metrics, epoch, step).
+        If loggers contains a callable, it will be called with (self, metrics, epoch, step).
 
         Args:
             metrics: Dictionary of metrics to log
@@ -198,17 +190,17 @@ class Trainer:
             else:
                 return f"{name}: {value}"
 
-        if "console" in self.loggers:
+        if "console" in self.trackers:
             metrics_str = ", ".join([f"{format_metric(k, v)}" for k, v in metrics.items()])
-            self.logger.info(f"step {self.step}: {metrics_str}")
+            logger.info(f"step {self.step}: {metrics_str}")
 
-        if "mlflow" in self.loggers:
+        if "mlflow" in self.trackers:
             mlflow.log_metrics(metrics, step=self.step)
 
         # Call any custom logger functions
-        logger_fns = [logger for logger in self.loggers if isinstance(logger, Callable)]
-        for logger_fn in logger_fns:
-            logger_fn(self, metrics, self.epoch, self.step)
+        tracker_fns = [tracker for tracker in self.trackers if isinstance(tracker, Callable)]
+        for tracker_fn in tracker_fns:
+            tracker_fn(self, metrics, self.epoch, self.step)
 
     def train_step(self, batch: Any) -> Dict[str, float]:
         """
@@ -410,7 +402,7 @@ class Trainer:
             self.step = checkpoint["step"]
 
         # Log loading success
-        self.logger.info(f"Loaded checkpoint from {path} (epoch {checkpoint.get('epoch', 'unknown')})")
+        logger.info(f"Loaded checkpoint from {path} (epoch {checkpoint.get('epoch', 'unknown')})")
 
         return checkpoint.get("epoch", -1)
 
@@ -457,7 +449,7 @@ class Trainer:
         best_epoch = -1
         no_improvement_count = 0
 
-        self.logger.info(f"Starting training for {num_epochs} epochs")
+        logger.info(f"Starting training for {num_epochs} epochs")
         try:
             # Main training loop
             for _ in range(num_epochs):
@@ -483,7 +475,7 @@ class Trainer:
                         # Save best model
                         if save_dir:
                             self._save_checkpoint(os.path.join(save_dir, "best_model.pt"), best_metric_value)
-                            self.logger.info(
+                            logger.info(
                                 f"Best model ({best_model_metric}={best_metric_value:.4f}) saved at epoch {self.epoch}"
                             )
                 else:  # Maximize other metrics (accuracy, f1, etc.)
@@ -495,7 +487,7 @@ class Trainer:
                         # Save best model
                         if save_dir:
                             self._save_checkpoint(os.path.join(save_dir, "best_model.pt"), best_metric_value)
-                            self.logger.info(
+                            logger.info(
                                 f"Best model ({best_model_metric}={best_metric_value}) saved at epoch {self.epoch}"
                             )
 
@@ -503,7 +495,7 @@ class Trainer:
                 if save_dir and save_freq > 0 and (self.epoch + 1) % save_freq == 0:
                     checkpoint_path = os.path.join(save_dir, f"checkpoint_epoch_{self.epoch}.pt")
                     self._save_checkpoint(checkpoint_path)
-                    self.logger.info(f"Checkpoint saved at epoch {self.epoch}")
+                    logger.info(f"Checkpoint saved at epoch {self.epoch}")
 
                 # Early stopping check
                 if early_stopping_patience is not None:
@@ -513,9 +505,7 @@ class Trainer:
                         no_improvement_count += 1
 
                     if no_improvement_count >= early_stopping_patience:
-                        self.logger.info(
-                            f"Early stopping triggered after {self.epoch} epochs. Best epoch was {best_epoch}."
-                        )
+                        logger.info(f"Early stopping triggered after {self.epoch} epochs. Best epoch was {best_epoch}.")
                         break
 
                 # Execute callbacks
@@ -523,13 +513,13 @@ class Trainer:
                     for callback in callbacks:
                         callback(self, self.epoch, epoch_metrics)
 
-            self.logger.info(f"Training completed. Best {best_model_metric} was at epoch {best_epoch}.")
+            logger.info(f"Training completed. Best {best_model_metric} was at epoch {best_epoch}.")
 
         except KeyboardInterrupt:
-            self.logger.info("Training interrupted.")
+            logger.info("Training interrupted.")
         except Exception as e:
-            self.logger.error(f"An error occurred during training: {e}")
-            if "mlflow" in self.loggers:
+            logger.error(f"An error occurred during training: {e}")
+            if "mlflow" in self.trackers:
                 mlflow.log_param("error", str(e))
             raise
         finally:
@@ -542,7 +532,7 @@ class Trainer:
             }
 
             # Ensure MLFlow run is ended
-            if "mlflow" in self.loggers:
+            if "mlflow" in self.trackers:
                 mlflow.end_run()
                 result["run_id"] = (self.run_id,)
                 result["run_name"] = mlflow.get_run(self.run_id).info.run_name

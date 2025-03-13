@@ -1,12 +1,9 @@
-import logging
 from collections import deque
 from dataclasses import dataclass
 from typing import Any, Iterator, List, Optional, Tuple
 
 import numpy as np
-
-# Configure basic logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+from loguru import logger
 
 
 @dataclass
@@ -40,7 +37,6 @@ class Experience:
         self._current_episode: List[Transition] = []
         self._last_completed_episode: List[Transition] = []
         self.enable_logging = enable_logging
-        self.logger = logging.getLogger(__name__)
 
     def add(self, transition: Transition) -> None:
         """
@@ -53,7 +49,7 @@ class Experience:
         self._current_episode.append(transition)
 
         if self.enable_logging:
-            self.logger.info(
+            logger.info(
                 f"Added transition: state={transition.state}, action={transition.action}, "
                 f"reward={transition.reward:.4f}, done={transition.done}"
             )
@@ -64,7 +60,7 @@ class Experience:
             self._current_episode = []
 
             if self.enable_logging:
-                self.logger.info(
+                logger.info(
                     f"Episode completed with {len(self._last_completed_episode)} transitions, "
                     f"total return: {sum(t.reward for t in self._last_completed_episode):.4f}"
                 )

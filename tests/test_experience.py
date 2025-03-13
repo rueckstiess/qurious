@@ -1,8 +1,8 @@
-import logging
 import unittest
 from io import StringIO
 
 import numpy as np
+from loguru import logger
 
 from qurious.rl.experience import Experience, Transition
 
@@ -266,10 +266,8 @@ class TestExperience(unittest.TestCase):
         """Test that transitions are logged when logging is enabled."""
         # Setup a string IO as log handler to capture logs
         log_capture = StringIO()
-        handler = logging.StreamHandler(log_capture)
-        logger = logging.getLogger("qurious.rl.experience")
-        logger.setLevel(logging.DEBUG)
-        logger.addHandler(handler)
+        logger.remove()  # Remove default handlers
+        logger_id = logger.add(log_capture, level="DEBUG")
 
         # Create experience with logging enabled
         exp = Experience(capacity=10, enable_logging=True)
@@ -287,16 +285,14 @@ class TestExperience(unittest.TestCase):
         self.assertIn("done=False", log_content)
 
         # Cleanup
-        logger.removeHandler(handler)
+        logger.remove(logger_id)
 
     def test_logging_episode_completion(self):
         """Test that episode completion is logged when logging is enabled."""
         # Setup a string IO as log handler to capture logs
         log_capture = StringIO()
-        handler = logging.StreamHandler(log_capture)
-        logger = logging.getLogger("qurious.rl.experience")
-        logger.setLevel(logging.DEBUG)
-        logger.addHandler(handler)
+        logger.remove()  # Remove default handlers
+        logger_id = logger.add(log_capture, level="DEBUG")
 
         # Create experience with logging enabled
         exp = Experience(capacity=10, enable_logging=True)
@@ -312,16 +308,14 @@ class TestExperience(unittest.TestCase):
         self.assertIn("total return: 3.50", log_content)
 
         # Cleanup
-        logger.removeHandler(handler)
+        logger.remove(logger_id)
 
     def test_logging_disabled_no_output(self):
         """Test that no logging occurs when logging is disabled."""
         # Setup a string IO as log handler to capture logs
         log_capture = StringIO()
-        handler = logging.StreamHandler(log_capture)
-        logger = logging.getLogger("qurious.rl.experience")
-        logger.setLevel(logging.DEBUG)
-        logger.addHandler(handler)
+        logger.remove()  # Remove default handlers
+        logger_id = logger.add(log_capture, level="DEBUG")
 
         # Create experience with logging disabled
         exp = Experience(capacity=10, enable_logging=False)
@@ -335,7 +329,7 @@ class TestExperience(unittest.TestCase):
         self.assertEqual(log_content, "")
 
         # Cleanup
-        logger.removeHandler(handler)
+        logger.remove(logger_id)
 
 
 if __name__ == "__main__":

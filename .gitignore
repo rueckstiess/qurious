@@ -16,3 +16,4 @@ wandb/
 .coverage
 mlruns/
 mlartifacts/
+runs/
