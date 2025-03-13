@@ -2,13 +2,14 @@ import datetime
 import os
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import mlflow
 import torch
 from loguru import logger
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
+from transformers import AutoModelForCausalLM
 
 from qurious.config import Config
+from qurious.experiments import Run
 from qurious.utils import auto_device
 
 
@@ -25,10 +26,7 @@ class Trainer:
         device: Optional[torch.device] = None,
         config: Config = None,
         scheduler: Optional[Any] = None,
-        trackers: Optional[List[str | Callable]] = ["console"],
-        experiment_name: Optional[str] = None,
-        parent_run_id: Optional[str] = None,
-        run_name: Optional[str] = None,
+        run: Optional[Run] = None,
     ):
         """
         Initialize the trainer.
@@ -60,24 +58,19 @@ class Trainer:
 
         self.loss_fn = loss_fn
         self.scheduler = scheduler
-        self.trackers = trackers
 
         self.step = 0
         self.epoch = 0
+        self.run = run
 
-        if experiment_name is None:
-            experiment_name = f"Experiment {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
-        self.experiment_name = experiment_name
-        self.run_id = None
-
-        # set up mlflow logging if specified
-        if "mlflow" in self.trackers:
-            mlflow.set_tracking_uri("http://127.0.0.1:5000")
-            mlflow.set_experiment(experiment_name)
-            mlflow.start_run(parent_run_id=parent_run_id, nested=parent_run_id is not None, run_name=run_name)
-            self.run_id = mlflow.active_run().info.run_id
-            mlflow.log_params(self.config.flatten_and_stringify())
-            print(f"MLFlow experiment '{experiment_name}' started with run name '{mlflow.active_run().info.run_name}'")
+        if self.config.training.checkpoint_dir:
+            if self.run is not None:
+                self.checkpoint_dir = os.path.join(self.run.run_path, self.config.training.checkpoint_dir)
+            else:
+                self.checkpoint_dir = self.config.training.checkpoint_dir
+            os.makedirs(self.checkpoint_dir, exist_ok=True)
+        else:
+            self.checkpoint_dir = None
 
         # Move model to the appropriate device
         self.model.to(self.device)
@@ -168,39 +161,9 @@ class Trainer:
         # Otherwise use the provided loss function
         return self.loss_fn(outputs, targets)
 
-    def _log_metrics(self, metrics: Dict[str, float]) -> None:
-        """
-        Log metrics to MLFlow and/or to the console.
-        If loggers contains a callable, it will be called with (self, metrics, epoch, step).
-
-        Args:
-            metrics: Dictionary of metrics to log
-            step: Current training step
-        """
-
-        def format_metric(name, value):
-            if name in ["lr", "learning_rate"]:
-                return f"{name}: {value:.2e}"
-            elif isinstance(value, int):
-                return f"{name}: {value}"
-            elif "acc" in name:
-                return f"{name}: {value:.2%}"
-            elif isinstance(value, float):
-                return f"{name}: {value:.4f}"
-            else:
-                return f"{name}: {value}"
-
-        if "console" in self.trackers:
-            metrics_str = ", ".join([f"{format_metric(k, v)}" for k, v in metrics.items()])
-            logger.info(f"step {self.step}: {metrics_str}")
-
-        if "mlflow" in self.trackers:
-            mlflow.log_metrics(metrics, step=self.step)
-
-        # Call any custom logger functions
-        tracker_fns = [tracker for tracker in self.trackers if isinstance(tracker, Callable)]
-        for tracker_fn in tracker_fns:
-            tracker_fn(self, metrics, self.epoch, self.step)
+    def _log_metrics(self, metrics: Dict[str, float], step: int = None) -> None:
+        if self.run is not None:
+            self.run.log_metrics(metrics, step=step)
 
     def train_step(self, batch: Any) -> Dict[str, float]:
         """
@@ -239,7 +202,17 @@ class Trainer:
             self.scheduler.step()
 
         self.step += 1
-        return {"train_loss": loss.item()}
+
+        # Regular checkpoint saving
+        if (
+            self.checkpoint_dir
+            and self.config.training.save_interval > 0
+            and self.step % self.config.training.save_interval == 0
+        ):
+            self._save_checkpoint(f"checkpoint_step_{self.step}")
+            logger.info(f"Checkpoint saved at step {self.step}")
+
+        return {"train_loss": loss.item(), "learning_rate": self.optimizer.param_groups[0]["lr"]}
 
     def eval_step(self, batch: Any) -> Dict[str, float]:
         """
@@ -281,7 +254,7 @@ class Trainer:
         train_loss = 0.0
         train_steps = 0
 
-        pbar = tqdm(train_dataloader, desc=f"Epoch {self.epoch + 1}")
+        pbar = tqdm(train_dataloader, desc=f"Epoch {self.epoch}")
         for batch in pbar:
             step_metrics = self.train_step(batch)
             train_loss += step_metrics["train_loss"]
@@ -290,7 +263,7 @@ class Trainer:
             # log metrics every log_interval steps
             if train_steps % self.config.training.log_interval == 0:
                 step_metrics["epoch"] = self.epoch
-                self._log_metrics(step_metrics)
+                self._log_metrics(step_metrics, self.step)
 
             # Update progress bar with current loss
             pbar.set_postfix(loss=f"{step_metrics['train_loss']:.4f}")
@@ -304,7 +277,7 @@ class Trainer:
             eval_metrics = self.evaluate(eval_dataloader)
             epoch_metrics.update(eval_metrics)
             epoch_metrics["epoch"] = self.epoch
-            self._log_metrics(eval_metrics)
+            self._log_metrics(eval_metrics, self.step)
 
         # Update learning rate scheduler if it steps per epoch
         if self.scheduler is not None and not (
@@ -343,7 +316,7 @@ class Trainer:
         avg_loss = total_loss / steps if steps > 0 else 0
         return {"eval_loss": avg_loss, "epoch": self.epoch}
 
-    def _save_checkpoint(self, path: str, metric_value: Optional[float] = None) -> None:
+    def _save_checkpoint(self, name: str, metric_value: Optional[float] = None) -> None:
         """
         Save a model checkpoint.
 
@@ -352,20 +325,31 @@ class Trainer:
             epoch: Current epoch number
             metric_value: Optional metric value to include in the checkpoint
         """
-        checkpoint = {
-            "model_state_dict": self.model.state_dict(),
+
+        path = os.path.join(self.checkpoint_dir, name)
+
+        state = {
             "optimizer_state_dict": self.optimizer.state_dict(),
             "epoch": self.epoch,
             "step": self.step,
         }
 
         if self.scheduler is not None:
-            checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
+            state["scheduler_state_dict"] = self.scheduler.state_dict()
 
         if metric_value is not None:
-            checkpoint["metric_value"] = metric_value
+            state["metric_value"] = metric_value
 
-        torch.save(checkpoint, path)
+        if hasattr(self.model, "save_pretrained"):
+            # Save Hugging Face model
+            self.model.save_pretrained(path)
+            path = os.path.join(path, "state.pt")
+        else:
+            # otherwise fall back to torch save
+            state["model_state_dict"] = self.model.state_dict()
+            path += ".pt"
+
+        torch.save(state, path)
 
     def load_checkpoint(self, path: str, load_optimizer: bool = True, load_scheduler: bool = True) -> int:
         """
@@ -379,32 +363,49 @@ class Trainer:
         Returns:
             The epoch number from the checkpoint
         """
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Checkpoint file not found: {path}")
+        path = os.path.join(self.checkpoint_dir, path) if self.checkpoint_dir else path
 
-        checkpoint = torch.load(path, map_location=self.device)
+        # if path is directory, load huggingface model
+        if os.path.isdir(path):
+            # Load Hugging Face model
+            self.model = AutoModelForCausalLM.from_pretrained(
+                path,
+                torch_dtype=torch.float16 if self.device.type == "cuda" else torch.float32,
+                device_map="auto" if self.device.type == "cuda" else None,
+            )
+            self.model = self.model.to(self.device)
+            self.model.set_adapter("default")
+            logger.info(f"Activate adapter {self.model.active_adapters()}")
 
-        # Load model state
-        self.model.load_state_dict(checkpoint["model_state_dict"])
+            path = os.path.join(path, "state.pt")
+            if not os.path.exists(path):
+                raise FileNotFoundError(f"State file not found: {path}")
+            state = torch.load(path, map_location=self.device)
+
+        else:
+            path += ".pt"
+            state = torch.load(path, map_location=self.device)
+            # Load model state
+            self.model.load_state_dict(state["model_state_dict"])
 
         # Load optimizer state if requested
-        if load_optimizer and "optimizer_state_dict" in checkpoint:
-            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        if load_optimizer and "optimizer_state_dict" in state:
+            self.optimizer.load_state_dict(state["optimizer_state_dict"])
 
         # Load scheduler state if requested
-        if load_scheduler and self.scheduler is not None and "scheduler_state_dict" in checkpoint:
-            self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+        if load_scheduler and self.scheduler is not None and "scheduler_state_dict" in state:
+            self.scheduler.load_state_dict(state["scheduler_state_dict"])
 
-        if "epoch" in checkpoint:
-            self.epoch = checkpoint["epoch"]
+        if "epoch" in state:
+            self.epoch = state["epoch"]
 
-        if "step" in checkpoint:
-            self.step = checkpoint["step"]
+        if "step" in state:
+            self.step = state["step"]
 
         # Log loading success
-        logger.info(f"Loaded checkpoint from {path} (epoch {checkpoint.get('epoch', 'unknown')})")
+        logger.info(f"Loaded checkpoint from {path} (epoch {state.get('epoch', 'unknown')})")
 
-        return checkpoint.get("epoch", -1)
+        return self.model
 
     def train(
         self,
@@ -422,7 +423,6 @@ class Trainer:
             train_dataloader: DataLoader for training data
             num_epochs: Number of epochs to train for
             eval_dataloader: Optional DataLoader for evaluation
-            save_dir: Directory to save model checkpoints
             save_freq: Frequency (in epochs) to save regular checkpoints
             best_model_metric: Metric to use for saving the best model (default: 'eval_loss')
             early_stopping_patience: Number of epochs to wait for improvement before stopping
@@ -433,12 +433,9 @@ class Trainer:
         """
         timestamp = datetime.datetime.now()
 
-        save_dir = self.config.paths.checkpoint_dir
-        save_freq = self.config.training.save_interval
-
         # Create save directory if needed
-        if save_dir and not os.path.exists(save_dir):
-            os.makedirs(save_dir)
+        if self.checkpoint_dir:
+            os.makedirs(self.checkpoint_dir, exist_ok=True)
 
         # Initialize tracking variables
         history = {"train_loss": []}
@@ -455,6 +452,7 @@ class Trainer:
             for _ in range(num_epochs):
                 # Train for one epoch and collect metrics
                 epoch_metrics = self.train_epoch(train_dataloader, eval_dataloader)
+                last_epoch = self.epoch - 1
 
                 # Update history
                 for key, value in epoch_metrics.items():
@@ -469,14 +467,14 @@ class Trainer:
                 if best_model_metric.endswith("loss"):  # Minimize loss
                     if current_metric < best_metric_value:
                         best_metric_value = current_metric
-                        best_epoch = self.epoch
+                        best_epoch = last_epoch
                         is_improvement = True
 
                         # Save best model
-                        if save_dir:
-                            self._save_checkpoint(os.path.join(save_dir, "best_model.pt"), best_metric_value)
+                        if self.checkpoint_dir:
+                            self._save_checkpoint("best_model", best_metric_value)
                             logger.info(
-                                f"Best model ({best_model_metric}={best_metric_value:.4f}) saved at epoch {self.epoch}"
+                                f"Best model ({best_model_metric}={best_metric_value:.4f}) saved at epoch {last_epoch}"
                             )
                 else:  # Maximize other metrics (accuracy, f1, etc.)
                     if current_metric > best_metric_value:
@@ -485,17 +483,11 @@ class Trainer:
                         is_improvement = True
 
                         # Save best model
-                        if save_dir:
-                            self._save_checkpoint(os.path.join(save_dir, "best_model.pt"), best_metric_value)
+                        if self.checkpoint_dir:
+                            self._save_checkpoint("best_model", best_metric_value)
                             logger.info(
-                                f"Best model ({best_model_metric}={best_metric_value}) saved at epoch {self.epoch}"
+                                f"Best model ({best_model_metric}={best_metric_value}) saved at epoch {last_epoch}"
                             )
-
-                # Regular checkpoint saving
-                if save_dir and save_freq > 0 and (self.epoch + 1) % save_freq == 0:
-                    checkpoint_path = os.path.join(save_dir, f"checkpoint_epoch_{self.epoch}.pt")
-                    self._save_checkpoint(checkpoint_path)
-                    logger.info(f"Checkpoint saved at epoch {self.epoch}")
 
                 # Early stopping check
                 if early_stopping_patience is not None:
@@ -519,22 +511,13 @@ class Trainer:
             logger.info("Training interrupted.")
         except Exception as e:
             logger.error(f"An error occurred during training: {e}")
-            if "mlflow" in self.trackers:
-                mlflow.log_param("error", str(e))
             raise
         finally:
             result = {
                 "history": history,
                 "best_epoch": best_epoch,
+                "best_model_metric": best_model_metric,
                 "best_metric_value": best_metric_value,
-                "experiment_name": self.experiment_name,
                 "runtime_secs": (datetime.datetime.now() - timestamp).total_seconds(),
             }
-
-            # Ensure MLFlow run is ended
-            if "mlflow" in self.trackers:
-                mlflow.end_run()
-                result["run_id"] = (self.run_id,)
-                result["run_name"] = mlflow.get_run(self.run_id).info.run_name
-
             return result

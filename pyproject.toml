@@ -21,11 +21,12 @@ dependencies = [
     "matplotlib>=3.9.0",
     "numpy>=1.26.0,<2.0.0",
     "torch>=2.1.0",
-    "transformers>=4.49.0",
+    "transformers @ git+https://github.com/huggingface/transformers@46350f5eae87ac1d168ddfdc57a0b39b64b9a029",
     "scikit-learn>=1.6.1",
     "peft>=0.14.0",
     "datasets>=3.3.2",
-    "loguru>=0.7.0"
+    "loguru>=0.7.0",
+    "rich>=13.9.0"
 ]
 
 [tool.setuptools.packages.find]

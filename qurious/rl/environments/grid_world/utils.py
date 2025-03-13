@@ -100,20 +100,24 @@ def evaluate_model(model, tokenizer, test_dataset, max_samples=None, batch_size=
     if max_samples is not None:
         test_dataset = test_dataset.shuffle().select(range(max_samples))
 
-    print(f"\nEvaluating {len(test_dataset)} samples...")
     # Process test data in batches, use tqdm for progress bar
-    for i in tqdm(range(0, len(test_dataset), batch_size), desc="Evaluating"):
+    for i in tqdm(range(0, len(test_dataset), batch_size), desc="Evaluating Accuracy"):
         batch = test_dataset.select(range(i, min(len(test_dataset), i + batch_size)))
         batch_prompts = []
 
         # Prepare batch inputs
-        for item in batch:
-            prompt = tokenizer.apply_chat_template(
-                item["messages"][:-1],  # Exclude assistant message
-                tokenize=False,
-                add_generation_prompt=True,
-            )
-            batch_prompts.append(prompt)
+        if "messages" in batch.column_names:
+            # For chat-based models, use the chat template
+            for item in batch:
+                prompt = tokenizer.apply_chat_template(
+                    item["messages"][:-1],  # Exclude assistant message
+                    tokenize=False,
+                    add_generation_prompt=True,
+                )
+                batch_prompts.append(prompt)
+        else:
+            # For non-chat models, use the prompts directly
+            batch_prompts = batch["prompt"]
 
         # Tokenize all prompts in batch
         batch_inputs = tokenizer(batch_prompts, padding=True, return_tensors="pt").to(model.device)
@@ -144,6 +148,5 @@ def evaluate_model(model, tokenizer, test_dataset, max_samples=None, batch_size=
 
     # Calculate and return accuracy
     accuracy = calculate_accuracy(test_dataset, predictions)
-    print_predictions(predictions, test_dataset)
 
     return accuracy, predictions

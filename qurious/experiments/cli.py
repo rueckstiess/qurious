@@ -14,6 +14,9 @@ def main():
     # Parse only the experiment_module first
     args, remaining = parser.parse_known_args()
 
+    # remove module from sys.argv
+    sys.argv = [a for a in sys.argv if a != args.module]
+
     # Import the experiment module
     try:
         sys.path.append(os.getcwd())

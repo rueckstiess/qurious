@@ -2,19 +2,19 @@ import argparse
 from abc import ABC, abstractmethod
 
 import mlflow
+from loguru import logger
 
 from qurious.config import Config, ConfigProduct
 from qurious.experiments import Run
 
 
 class BaseExperiment(ABC):
-    def __init__(self, config: Config, args: argparse.Namespace = None, unknown_args: list = None):
+    def __init__(self, config: Config, args: argparse.Namespace = None):
         """Initialize the experiment with the experiment name"""
         super().__init__()
         self.experiment_name = args.experiment
         self.config = config
         self.args = args
-        self.unknown_args = unknown_args
 
     @abstractmethod
     def execute(self, run: Run):
@@ -40,7 +40,7 @@ class BaseExperiment(ABC):
                 self.execute(run)
             except Exception as e:
                 # Handle exceptions during execution
-                run.error(f"Error during execution: {e}")
+                logger.error(f"Error during execution: {e}")
                 self.teardown()
                 raise e
 
@@ -85,7 +85,7 @@ class BaseExperiment(ABC):
         """Add base arguments to the parser"""
         parser.add_argument("--config", "-c", type=str, default=None, help="Path to the config file.")
         parser.add_argument("--params", "-p", nargs="+", default=[], help="Parameters to override in the config file.")
-        parser.add_argument("--experiment", "-e", type=str, default="default-experiment", help="Experiment name.")
+        parser.add_argument("--experiment", "-e", type=str, required=True, help="Experiment name.")
         parser.add_argument("--run-name", "-n", type=str, default=None, help="Run name.")
         parser.add_argument("--debug", action="store_true", help="Enable debug mode")
         parser.add_argument(
@@ -103,19 +103,19 @@ class BaseExperiment(ABC):
     def parse_args_and_config(cls, args=None):
         """Parse arguments and create config"""
         parser = cls.create_parser()
-        args, unknown = parser.parse_known_args(args)
+        args = parser.parse_args(args)
         config = Config.from_args(args)
-        return args, unknown, config
+        return args, config
 
     @classmethod
     def main(cls):
         """Main entry point for standalone execution"""
 
         # Parse args and create config
-        args, unknown_args, config = cls.parse_args_and_config()
+        args, config = cls.parse_args_and_config()
 
         # Create experiment instance and execute runs
-        experiment = cls(config=config, args=args, unknown_args=unknown_args)
+        experiment = cls(config=config, args=args)
         experiment.execute_runs_from_config()
 
 
