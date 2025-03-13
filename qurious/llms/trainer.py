@@ -68,6 +68,7 @@ class Trainer:
                 self.checkpoint_dir = os.path.join(self.run.run_path, self.config.training.checkpoint_dir)
             else:
                 self.checkpoint_dir = self.config.training.checkpoint_dir
+            os.makedirs(self.checkpoint_dir, exist_ok=True)
         else:
             self.checkpoint_dir = None
 

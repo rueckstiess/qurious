@@ -78,7 +78,7 @@ def loss_fn():
 
 
 @pytest.fixture
-def config():
+def config(tmp_path):
     """Fixture for training configuration."""
     # Create a config with the structure based on the new Config class
     config = Config(
@@ -89,7 +89,7 @@ def config():
                 "scheduler_step_per_batch": True,
                 "log_interval": 10,
                 "save_interval": 1,
-                "checkpoint_dir": "./checkpoints",
+                "checkpoint_dir": os.path.join(tmp_path, "./checkpoints"),
             },
         }
     )
