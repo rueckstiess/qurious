@@ -150,7 +150,9 @@ class Run:
         self.is_running = False
         self.end_time = datetime.datetime.now()
 
-        logger.info(f"=== Ending{' nested' if self.parent_run_id else ''} run <magenta>{self.run_name}</> ===")
+        logger.opt(colors=True).info(
+            f"=== Ending{' nested' if self.parent_run_id else ''} run <magenta>{self.run_name}</> ==="
+        )
 
         # Close all trackers
         for tracker in self.trackers:

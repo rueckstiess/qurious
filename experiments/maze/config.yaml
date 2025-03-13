@@ -1,5 +1,5 @@
 model:
-  base_model: meta-llama/Llama-3.1-8B-Instruct
+  base_model: google/gemma-3-4b-it
   device: auto
   lora_enabled: true
   lora_config:
@@ -7,11 +7,8 @@ model:
     lora_alpha: 16
     lora_dropout: 0.05
     r: 8
-    target_modules: all-linear
+    target_modules: "all-linear"
     task_type: CAUSAL_LM
-paths:
-  checkpoint_dir: ./checkpoints
-  data_path: ../../data/grid_world_1k.jsonl
 training:
   batch_size: 4
   epochs: 5
@@ -22,3 +19,10 @@ training:
   max_grad_norm: 1.0
   save_interval: 1000
   scheduler_step_per_batch: true
+  checkpoint_dir: ./checkpoints
+data:
+  file: ../../data/grid_world_1k_chat.jsonl
+  system_prompt: >-
+    Navigate a grid world from A (agent) to G (goal). The grid uses ASCII: . (empty), # (obstacle),
+    A (agent), G (goal). You can move up, down, left, or right. Provide ONLY the sequence of moves
+    as space-separated directions (e.g., "up left left down").

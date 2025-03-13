@@ -18,23 +18,39 @@ os.environ["MLFLOW_TRACKING_URI"] = "http://localhost:5000"
 
 
 class FineTuneLLMsOnMazes(BaseExperiment):
+    def prepare_dataset(self, dataset, tokenizer, system_prompt=None):
+        """Prepare the dataset for training for chat and non-chat models."""
+
+        # Create new "text" column by concatenating "prompt" and "response" columns
+        def concat_prompt_response(example):
+            if system_prompt:
+                return {"text": system_prompt + "\n" + example["prompt"] + example["response"]}
+            return {"text": example["prompt"] + example["response"]}
+
+        def format_chat_messages(example):
+            if system_prompt:
+                # Add system prompt to the beginning of the messages
+                example["messages"].insert(0, {"role": "system", "content": system_prompt})
+
+            text = tokenizer.apply_chat_template(
+                example["messages"],  # Exclude assistant message
+                tokenize=False,
+                add_generation_prompt=False,
+            )
+            return {"text": text}
+
+        if "messages" in dataset.column_names:
+            # For chat-based models, format the messages
+            dataset = dataset.map(format_chat_messages)
+        else:
+            # For non-chat models, use the prompts directly
+            dataset = dataset.map(concat_prompt_response)
+        return dataset
+
     def execute(self, run: Run):
         """Execute a training run."""
 
         config = run.config
-
-        # create new "text" column by concatenating "prompt" and "response" columns
-        def concat_prompt_response(example):
-            return {"text": example["prompt"] + example["response"]}
-
-        dataset = load_dataset("json", data_files=config.paths.data_path)["train"]
-        dataset = dataset.map(concat_prompt_response)
-
-        # Split Train and Test Dataset
-        dataset = dataset.train_test_split(test_size=0.2, seed=42)
-
-        run.log_info(f"Training dataset contains {len(dataset['train'])} examples")
-        run.log_info(f"Test dataset contains {len(dataset['test'])} examples")
 
         # Load models and tokenizer with LoraManager
         lora_manager = LoraManager(config)
@@ -58,8 +74,18 @@ class FineTuneLLMsOnMazes(BaseExperiment):
             f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param:.2f}%"
         )
 
+        # Load and format the dataset
+        dataset = load_dataset("json", data_files=config.data.file)["train"]
+        dataset = self.prepare_dataset(dataset, tokenizer, config.data.system_prompt)
+
+        # Split train and test sets
+        dataset = dataset.train_test_split(test_size=0.2, seed=42)
+
+        run.log_info(f"Training dataset contains {len(dataset['train'])} examples")
+        run.log_info(f"Test dataset contains {len(dataset['test'])} examples")
+
         # Determine maximum length of input sequences
-        MAX_LENGTH = max(len(tokenizer.encode(sample["text"])) for sample in dataset["train"]) + 1
+        MAX_LENGTH = max(len(tokenizer.encode(sample["text"])) for sample in dataset["train"]) + 10
         logger.info(f"Maximum length of input sequences: {MAX_LENGTH}")
 
         def tokenize_and_pad_to_fixed_length(sample):
@@ -86,13 +112,19 @@ class FineTuneLLMsOnMazes(BaseExperiment):
         assert all(x["attention_mask"][0] == 0 for x in tokenized_train_dataset if len(x["attention_mask"]) > 0)
         assert all(x["attention_mask"][0] == 0 for x in tokenized_eval_dataset if len(x["attention_mask"]) > 0)
 
-        logger.info(tokenizer.decode(tokenized_train_dataset[0]["input_ids"], skip_special_tokens=True))
+        logger.info(
+            f"Decoded input example:\n{tokenizer.decode(tokenized_train_dataset[0]['input_ids'], skip_special_tokens=False)}",
+        )
 
         # Train Model
 
         # make data loaders for PyTorch format
-        train_dataloader = DataLoader(tokenized_train_dataset.with_format("torch"), batch_size=8, shuffle=True)
-        eval_dataloader = DataLoader(tokenized_eval_dataset.with_format("torch"), batch_size=8, shuffle=False)
+        train_dataloader = DataLoader(
+            tokenized_train_dataset.with_format("torch"), batch_size=config.training.batch_size, shuffle=True
+        )
+        eval_dataloader = DataLoader(
+            tokenized_eval_dataset.with_format("torch"), batch_size=config.training.batch_size, shuffle=False
+        )
 
         optimizer = AdamW(peft_model.parameters(), lr=config.training.learning_rate, weight_decay=0.01)
         scheduler = LinearLR(optimizer, start_factor=1, end_factor=0.1, total_iters=len(dataset["train"]))
@@ -108,7 +140,9 @@ class FineTuneLLMsOnMazes(BaseExperiment):
         )
 
         # evaluate model before training
-        accuracy, predictions = evaluate_model(peft_model, tokenizer, dataset["test"])
+        accuracy, predictions = evaluate_model(
+            peft_model, tokenizer, dataset["test"], batch_size=config.training.batch_size * 2
+        )
         run.log_metrics({"accuracy": accuracy}, 0)
 
         result = trainer.train(
@@ -118,10 +152,12 @@ class FineTuneLLMsOnMazes(BaseExperiment):
 
         # Loading best model
         run.log_info("Loading best model")
-        trainer.load_checkpoint("best_model.pt", load_optimizer=False, load_scheduler=False)
+        peft_model = trainer.load_checkpoint("best_model", load_optimizer=False, load_scheduler=False)
 
         # evaluate model after training
-        accuracy, predictions = evaluate_model(peft_model, tokenizer, dataset["test"])
+        accuracy, predictions = evaluate_model(
+            peft_model, tokenizer, dataset["test"], batch_size=config.training.batch_size * 2
+        )
         run.log_metrics({"accuracy": accuracy}, trainer.step)
 
         # create table of predictions and references
@@ -129,51 +165,6 @@ class FineTuneLLMsOnMazes(BaseExperiment):
         df = dataset["test"].to_pandas()
 
         run.log_info(f"\n{df[['env', 'actions', 'predictions']]}")
-
-        # Update the style of the table
-
-        # eval_samples = dataset["test"].select(range(10))
-        # # model = lora_manager.get_base_model()
-        # # model = peft_model
-        # model = trainer.model
-
-        # # Generate outputs
-        # results = []
-        # for sample in tqdm(eval_samples):
-        #     # Assuming your dataset has 'input' and 'target' fields
-        #     # Adjust the field names as needed for your specific dataset
-        #     input_text = sample["prompt"]
-        #     reference = sample["response"]
-
-        #     # Tokenize and generate
-        #     inputs = tokenizer(
-        #         input_text,
-        #         return_tensors="pt",
-        #     ).to(model.device)
-
-        #     with torch.no_grad():
-        #         outputs = model.generate(
-        #             **inputs,
-        #             max_new_tokens=20,  # Adjust as needed
-        #             do_sample=True,
-        #             temperature=0.3,
-        #             top_p=0.9,
-        #             pad_token_id=tokenizer.eos_token_id,
-        #         )
-
-        #     # Decode the generated output
-        #     generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-        #     # Extract only the newly generated part (optional)
-        #     # This is model and tokenizer specific, you may need to adjust
-        #     generated_response = generated_text[
-        #         len(tokenizer.decode(inputs["input_ids"][0], skip_special_tokens=True)) :
-        #     ]
-
-        #     results.append({"input": input_text, "generated": generated_response, "reference": reference})
-
-        # df = pd.DataFrame(results)
-        # run.log_info(f"\n{df}")
 
 
 if __name__ == "__main__":

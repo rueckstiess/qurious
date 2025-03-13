@@ -6,6 +6,7 @@ import torch
 from loguru import logger
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
+from transformers import AutoModelForCausalLM
 
 from qurious.config import Config
 from qurious.experiments import Run
@@ -62,11 +63,11 @@ class Trainer:
         self.epoch = 0
         self.run = run
 
-        if self.config.paths.checkpoint_dir:
+        if self.config.training.checkpoint_dir:
             if self.run is not None:
-                self.checkpoint_dir = os.path.join(self.run.run_path, self.config.paths.checkpoint_dir)
+                self.checkpoint_dir = os.path.join(self.run.run_path, self.config.training.checkpoint_dir)
             else:
-                self.checkpoint_dir = self.config.paths.checkpoint_dir
+                self.checkpoint_dir = self.config.training.checkpoint_dir
         else:
             self.checkpoint_dir = None
 
@@ -205,12 +206,12 @@ class Trainer:
         if (
             self.checkpoint_dir
             and self.config.training.save_interval > 0
-            and (self.epoch + 1) % self.config.training.save_interval == 0
+            and self.step % self.config.training.save_interval == 0
         ):
-            self._save_checkpoint(f"checkpoint_step_{self.step}.pt")
+            self._save_checkpoint(f"checkpoint_step_{self.step}")
             logger.info(f"Checkpoint saved at step {self.step}")
 
-        return {"train_loss": loss.item()}
+        return {"train_loss": loss.item(), "learning_rate": self.optimizer.param_groups[0]["lr"]}
 
     def eval_step(self, batch: Any) -> Dict[str, float]:
         """
@@ -252,7 +253,7 @@ class Trainer:
         train_loss = 0.0
         train_steps = 0
 
-        pbar = tqdm(train_dataloader, desc=f"Epoch {self.epoch + 1}")
+        pbar = tqdm(train_dataloader, desc=f"Epoch {self.epoch}")
         for batch in pbar:
             step_metrics = self.train_step(batch)
             train_loss += step_metrics["train_loss"]
@@ -323,21 +324,31 @@ class Trainer:
             epoch: Current epoch number
             metric_value: Optional metric value to include in the checkpoint
         """
-        checkpoint = {
-            "model_state_dict": self.model.state_dict(),
+
+        path = os.path.join(self.checkpoint_dir, name)
+
+        state = {
             "optimizer_state_dict": self.optimizer.state_dict(),
             "epoch": self.epoch,
             "step": self.step,
         }
 
         if self.scheduler is not None:
-            checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
+            state["scheduler_state_dict"] = self.scheduler.state_dict()
 
         if metric_value is not None:
-            checkpoint["metric_value"] = metric_value
+            state["metric_value"] = metric_value
 
-        path = os.path.join(self.checkpoint_dir, name)
-        torch.save(checkpoint, path)
+        if hasattr(self.model, "save_pretrained"):
+            # Save Hugging Face model
+            self.model.save_pretrained(path)
+            path = os.path.join(path, "state.pt")
+        else:
+            # otherwise fall back to torch save
+            state["model_state_dict"] = self.model.state_dict()
+            path += ".pt"
+
+        torch.save(state, path)
 
     def load_checkpoint(self, path: str, load_optimizer: bool = True, load_scheduler: bool = True) -> int:
         """
@@ -353,32 +364,46 @@ class Trainer:
         """
         path = os.path.join(self.checkpoint_dir, path) if self.checkpoint_dir else path
 
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Checkpoint file not found: {path}")
+        if not path.endswith(".pt"):
+            # Load Hugging Face model
+            self.model = AutoModelForCausalLM.from_pretrained(
+                path,
+                torch_dtype=torch.float16 if self.device.type == "cuda" else torch.float32,
+                device_map="auto" if self.device.type == "cuda" else None,
+            )
+            self.model = self.model.to(self.device)
+            self.model.set_adapter("default")
+            logger.info(f"Activate adapter {self.model.active_adapters()}")
 
-        checkpoint = torch.load(path, map_location=self.device)
+            path = os.path.join(path, "state.pt")
+            if not os.path.exists(path):
+                raise FileNotFoundError(f"State file not found: {path}")
+            state = torch.load(path, map_location=self.device)
 
-        # Load model state
-        self.model.load_state_dict(checkpoint["model_state_dict"])
+        else:
+            path += ".pt"
+            state = torch.load(path, map_location=self.device)
+            # Load model state
+            self.model.load_state_dict(state["model_state_dict"])
 
         # Load optimizer state if requested
-        if load_optimizer and "optimizer_state_dict" in checkpoint:
-            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        if load_optimizer and "optimizer_state_dict" in state:
+            self.optimizer.load_state_dict(state["optimizer_state_dict"])
 
         # Load scheduler state if requested
-        if load_scheduler and self.scheduler is not None and "scheduler_state_dict" in checkpoint:
-            self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+        if load_scheduler and self.scheduler is not None and "scheduler_state_dict" in state:
+            self.scheduler.load_state_dict(state["scheduler_state_dict"])
 
-        if "epoch" in checkpoint:
-            self.epoch = checkpoint["epoch"]
+        if "epoch" in state:
+            self.epoch = state["epoch"]
 
-        if "step" in checkpoint:
-            self.step = checkpoint["step"]
+        if "step" in state:
+            self.step = state["step"]
 
         # Log loading success
-        logger.info(f"Loaded checkpoint from {path} (epoch {checkpoint.get('epoch', 'unknown')})")
+        logger.info(f"Loaded checkpoint from {path} (epoch {state.get('epoch', 'unknown')})")
 
-        return checkpoint.get("epoch", -1)
+        return self.model
 
     def train(
         self,
@@ -425,6 +450,7 @@ class Trainer:
             for _ in range(num_epochs):
                 # Train for one epoch and collect metrics
                 epoch_metrics = self.train_epoch(train_dataloader, eval_dataloader)
+                last_epoch = self.epoch - 1
 
                 # Update history
                 for key, value in epoch_metrics.items():
@@ -439,14 +465,14 @@ class Trainer:
                 if best_model_metric.endswith("loss"):  # Minimize loss
                     if current_metric < best_metric_value:
                         best_metric_value = current_metric
-                        best_epoch = self.epoch
+                        best_epoch = last_epoch
                         is_improvement = True
 
                         # Save best model
                         if self.checkpoint_dir:
-                            self._save_checkpoint("best_model.pt", best_metric_value)
+                            self._save_checkpoint("best_model", best_metric_value)
                             logger.info(
-                                f"Best model ({best_model_metric}={best_metric_value:.4f}) saved at epoch {self.epoch}"
+                                f"Best model ({best_model_metric}={best_metric_value:.4f}) saved at epoch {last_epoch}"
                             )
                 else:  # Maximize other metrics (accuracy, f1, etc.)
                     if current_metric > best_metric_value:
@@ -456,9 +482,9 @@ class Trainer:
 
                         # Save best model
                         if self.checkpoint_dir:
-                            self._save_checkpoint("best_model.pt", best_metric_value)
+                            self._save_checkpoint("best_model", best_metric_value)
                             logger.info(
-                                f"Best model ({best_model_metric}={best_metric_value}) saved at epoch {self.epoch}"
+                                f"Best model ({best_model_metric}={best_metric_value}) saved at epoch {last_epoch}"
                             )
 
                 # Early stopping check

@@ -134,7 +134,7 @@ class TestLoraManager:
         manager.add_adapter("custom_adapter", custom_config)
 
         # Check that get_peft_model was called with the custom config
-        mock_dependencies["get_peft"].assert_called_once_with(manager.base_model, custom_config)
+        mock_dependencies["get_peft"].assert_called_once_with(manager.model, custom_config)
 
         # Check that the adapter was added
         assert "custom_adapter" in manager.adapters
@@ -214,7 +214,7 @@ class TestLoraManager:
         model = manager.get_base_model()
 
         # Check that the base model was returned
-        assert model == manager.base_model
+        assert model == manager.model
 
     def test_get_model_adapter(self, mock_config, mock_dependencies):
         """Test getting a model with an adapter."""

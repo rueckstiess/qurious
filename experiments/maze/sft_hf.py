@@ -21,7 +21,7 @@ def main():
     tokenizer = lora_manager.tokenizer
 
     # Load train/eval data and split
-    dataset = load_dataset("json", data_files=str(Path(config.paths.data_dir) / "grid_world_1k_chat.jsonl"))
+    dataset = load_dataset("json", data_files=str(Path(config.data.file) / "grid_world_1k_chat.jsonl"))
     dataset = dataset["train"].train_test_split(test_size=0.1, seed=42)
     print(dataset)
 
