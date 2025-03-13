@@ -345,7 +345,7 @@ class TestTrainer:
         new_trainer = Trainer(new_model, loss_fn, optimizer=optim.SGD(new_model.parameters(), lr=0.01), config=config)
 
         # Load the checkpoint
-        epoch = new_trainer.load_checkpoint("checkpoint")
+        new_trainer.load_checkpoint("checkpoint")
 
         # Verify the epoch was loaded correctly
         assert new_trainer.epoch == 10
