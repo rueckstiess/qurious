@@ -21,33 +21,23 @@ os.environ["MLFLOW_TRACKING_URI"] = "http://localhost:5000"
 
 
 class FineTuneLLMsOnMazes(BaseExperiment):
-    @classmethod
-    def add_arguments(cls, parser):
-        # First, add the base arguments
-        super().add_arguments(parser)
-
-        # Then add experiment-specific arguments if running standalone
-        # These will be captured as unknown_args if run through the harness
-        parser.add_argument("--dataset", required=True, type=str, help="The dataset to use for training.")
-
     def execute(self, run: Run):
         """Execute a training run."""
 
         config = run.config
-        args = self.args
 
         # create new "text" column by concatenating "prompt" and "response" columns
         def concat_prompt_response(example):
             return {"text": example["prompt"] + example["response"]}
 
-        dataset = load_dataset("json", data_files=str(Path(config.paths.data_dir) / args.dataset))["train"]
+        dataset = load_dataset("json", data_files=config.paths.data_path)["train"]
         dataset = dataset.map(concat_prompt_response)
 
         # Split Train and Test Dataset
         dataset = dataset.train_test_split(test_size=0.2, seed=42)
 
-        print(f"Training dataset contains {len(dataset['train'])} examples")
-        print(f"Test dataset contains {len(dataset['test'])} examples")
+        run.log_info(f"Training dataset contains {len(dataset['train'])} examples")
+        run.log_info(f"Test dataset contains {len(dataset['test'])} examples")
 
         # Load models and tokenizer with LoraManager
         lora_manager = LoraManager(config)
@@ -67,13 +57,13 @@ class FineTuneLLMsOnMazes(BaseExperiment):
             if param.requires_grad:
                 trainable_params += param.numel()
 
-        print(
+        run.log_info(
             f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param:.2f}%"
         )
 
         # Determine maximum length of input sequences
         MAX_LENGTH = max(len(tokenizer.encode(sample["text"])) for sample in dataset["train"]) + 1
-        print(f"Maximum length of input sequences: {MAX_LENGTH}")
+        logger.info(f"Maximum length of input sequences: {MAX_LENGTH}")
 
         def tokenize_and_pad_to_fixed_length(sample):
             result = tokenizer(
@@ -99,7 +89,7 @@ class FineTuneLLMsOnMazes(BaseExperiment):
         assert all(x["attention_mask"][0] == 0 for x in tokenized_train_dataset if len(x["attention_mask"]) > 0)
         assert all(x["attention_mask"][0] == 0 for x in tokenized_eval_dataset if len(x["attention_mask"]) > 0)
 
-        print(tokenizer.decode(tokenized_train_dataset[0]["input_ids"], skip_special_tokens=True))
+        logger.info(tokenizer.decode(tokenized_train_dataset[0]["input_ids"], skip_special_tokens=True))
 
         # Train Model
 
@@ -127,10 +117,10 @@ class FineTuneLLMsOnMazes(BaseExperiment):
         #     print("Resuming from checkpoint:", checkpoint_path)
 
         # if not args.skip_training:
-        history = trainer.train(
+        result = trainer.train(
             train_dataloader=train_dataloader, eval_dataloader=eval_dataloader, num_epochs=config.training.epochs
         )
-        # print(f"Training history: {history}")
+        run.log_info(f"Training result: {result}")
 
         # Loading best model
         # best_model_path = str(Path(config.paths.checkpoint_dir) / "best_model.pt")
@@ -179,7 +169,7 @@ class FineTuneLLMsOnMazes(BaseExperiment):
             results.append({"input": input_text, "generated": generated_response, "reference": reference})
 
         df = pd.DataFrame(results)
-        print(df)
+        run.log_info(f"\n{df}")
 
 
 if __name__ == "__main__":

@@ -151,9 +151,9 @@ class Trainer:
         # Otherwise use the provided loss function
         return self.loss_fn(outputs, targets)
 
-    def _log_metrics(self, metrics: Dict[str, float]) -> None:
+    def _log_metrics(self, metrics: Dict[str, float], step: int = None) -> None:
         if self.run is not None:
-            self.run.log_metrics(metrics)
+            self.run.log_metrics(metrics, step=step)
 
     def train_step(self, batch: Any) -> Dict[str, float]:
         """
@@ -243,7 +243,7 @@ class Trainer:
             # log metrics every log_interval steps
             if train_steps % self.config.training.log_interval == 0:
                 step_metrics["epoch"] = self.epoch
-                self._log_metrics(step_metrics)
+                self._log_metrics(step_metrics, self.step)
 
             # Update progress bar with current loss
             pbar.set_postfix(loss=f"{step_metrics['train_loss']:.4f}")
@@ -257,7 +257,7 @@ class Trainer:
             eval_metrics = self.evaluate(eval_dataloader)
             epoch_metrics.update(eval_metrics)
             epoch_metrics["epoch"] = self.epoch
-            self._log_metrics(eval_metrics)
+            self._log_metrics(eval_metrics, self.step)
 
         # Update learning rate scheduler if it steps per epoch
         if self.scheduler is not None and not (
@@ -480,6 +480,7 @@ class Trainer:
             result = {
                 "history": history,
                 "best_epoch": best_epoch,
+                "best_model_metric": best_model_metric,
                 "best_metric_value": best_metric_value,
                 "runtime_secs": (datetime.datetime.now() - timestamp).total_seconds(),
             }
