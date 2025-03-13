@@ -40,6 +40,11 @@ def main():
         if not experiment_class:
             raise ValueError(f"No experiment class found in {args.experiment_module}")
 
+        # change cwd to module's directory
+        module_dir = os.path.dirname(os.path.abspath(module.__file__))
+        os.chdir(module_dir)
+        print(f"Changed working directory to {module_dir}")
+
         # Run the experiment
         experiment_class.main()
 

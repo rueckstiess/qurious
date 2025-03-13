@@ -111,9 +111,6 @@ class BaseExperiment(ABC):
     @classmethod
     def main(cls):
         """Main entry point for standalone execution"""
-        # Set current working directory to the script directory
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        os.chdir(script_dir)
 
         # Parse args and create config
         args, unknown_args, config = cls.parse_args_and_config()
@@ -121,3 +118,7 @@ class BaseExperiment(ABC):
         # Create experiment instance and execute runs
         experiment = cls(config=config, args=args, unknown_args=unknown_args)
         experiment.execute_runs_from_config()
+
+
+if __name__ == "__main__":
+    print("This module is not meant to be run directly. Use the command line interface.")

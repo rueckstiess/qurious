@@ -1,21 +1,20 @@
 import pytest
 
 from qurious.experiments import BaseExperiment, Run
+from qurious.config import Config
 
 
 class TestRun:
     def test_run_init(self):
         """Test the initialization of the Run class."""
-        run = Run(experiment_name="test_experiment", config={}, run_name="test_run")
+        run = Run(experiment_name="test_experiment", config=Config(), run_name="test_run")
 
         assert run.experiment_name == "test_experiment"
-        assert run.config == {}
+        assert isinstance(run.config, Config)
         assert run.run_name == "test_run"
         assert run.run_id is None
         assert run.parent_run_id is None
-        assert run.log_to == ["console"]
-        assert run.metrics == {}
-        assert run.artifacts == {}
+        assert run.log_to == []
         assert run.start_time is None
         assert run.end_time is None
         assert not run.is_running
@@ -25,26 +24,24 @@ class TestRun:
         parent_run_id = "parent_run_id"
         run = Run(
             experiment_name="test_experiment",
-            config={},
+            config=Config(),
             run_name="test_run",
             parent_run_id=parent_run_id,
         )
 
         assert run.experiment_name == "test_experiment"
-        assert run.config == {}
+        assert isinstance(run.config, Config)
         assert run.run_name == "test_run"
         assert run.run_id is None
         assert run.parent_run_id == parent_run_id
-        assert run.log_to == ["console"]
-        assert run.metrics == {}
-        assert run.artifacts == {}
+        assert run.log_to == []
         assert run.start_time is None
         assert run.end_time is None
         assert not run.is_running
 
     def test_run_repr(self):
         """Test the string representation of the Run class."""
-        run = Run(experiment_name="test_experiment", config={}, run_name="test_run")
+        run = Run(experiment_name="test_experiment", config=Config(), run_name="test_run")
 
         expected_repr = (
             "Run(experiment_name=test_experiment, run_name=test_run, run_id=None, "
@@ -55,7 +52,7 @@ class TestRun:
 
     def test_run_context_manager(self):
         """Test the context manager functionality of the Run class."""
-        run = Run(experiment_name="test_experiment", config={}, run_name="test_run")
+        run = Run(experiment_name="test_experiment", config=Config(), run_name="test_run")
 
         assert not run.is_running
         assert run.start_time is None
@@ -70,7 +67,7 @@ class TestRun:
 
     def test_run_start_end_explicit(self):
         """Test the explicit start method of the Run class."""
-        run = Run(experiment_name="test_experiment", config={}, run_name="test_run")
+        run = Run(experiment_name="test_experiment", config=Config(), run_name="test_run")
 
         assert not run.is_running
         assert run.start_time is None
@@ -89,7 +86,7 @@ class TestRun:
 
     def test_run_with_parent(self):
         """Test the context manager functionality of the Run class with a parent run."""
-        parent_run = Run(experiment_name="test_experiment", config={}, run_name="parent_run")
+        parent_run = Run(experiment_name="test_experiment", config=Config(), run_name="parent_run")
 
         assert not parent_run.is_running
         assert parent_run.start_time is None
@@ -100,7 +97,7 @@ class TestRun:
 
             child_run = Run(
                 experiment_name="test_experiment",
-                config={},
+                config=Config(),
                 run_name="child_run",
                 parent_run_id=parent_run.run_id,
             )

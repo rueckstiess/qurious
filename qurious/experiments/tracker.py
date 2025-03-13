@@ -1,32 +1,30 @@
 import os
 import shutil
-from datetime import datetime
+import sys
+from typing import Optional
 
 import mlflow
 from loguru import logger
 
+RUN_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss}</> | <lvl>{level: <8}</> | <lvl>{message}</>"
+OTHER_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss}</> | <lvl>{level: <8}</> | <cyan>{name}:{function}():{line}</> | <lvl>{message}</>"
+DEFAULT_FORMAT = (
+    "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+    "<level>{level: <8}</level> | "
+    "<cyan>{name}</cyan>:<cyan>{function}()</cyan>:<cyan>{line}</cyan> | "
+    "<level>{message}</level>"
+)
+
+logger.remove()
+logger.add(sys.stderr, format=DEFAULT_FORMAT, filter=lambda record: "run_name" not in record["extra"], level="INFO")
+logger.level("INFO", color="<white>")
+logger.level("METRIC", no=20, color="<white><b>")
+logger.level("ARTIFACT", no=20, color="<fg #FF8300>")
+
 
 class Tracker:
-    # define log levels as enums
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
-    DEBUG = "debug"
-
-    def log(self, level, message):
+    def log_info(self, message):
         pass
-
-    def info(self, message):
-        self.log(self.INFO, message)
-
-    def warning(self, message):
-        self.log(self.WARNING, message)
-
-    def error(self, message):
-        self.log(self.ERROR, message)
-
-    def debug(self, message):
-        self.log(self.DEBUG, message)
 
     def log_metrics(self, metrics, step=None):
         pass
@@ -37,43 +35,59 @@ class Tracker:
     def log_artifact(self, local_path, artifact_path=None):
         pass
 
+    def close(self):
+        pass
+
 
 class ConsoleTracker(Tracker):
-    def log(self, level, message):
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[{level.upper()}] {timestamp} - {message}")
+    def __init__(self, run_name):
+        self.run_name = run_name
+
+        RUN_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss}</> | <lvl>{level: <8}</> | <magenta>{extra[run_name]}</> | <lvl>{message}</>"
+
+        self.info_logger = logger.add(
+            sys.stderr,
+            format=RUN_FORMAT,
+            filter=lambda record: record["extra"].get("run_name", None) == run_name and record["level"].no == 20,
+        )
+        self.other_logger = logger.add(
+            sys.stderr,
+            format=OTHER_FORMAT,
+            filter=lambda record: record["extra"].get("run_name", None) == run_name and record["level"].no != 20,
+        )
+
+    def log_info(self, message):
+        with logger.contextualize(run_name=self.run_name):
+            logger.info(message)
 
     def log_metrics(self, metrics, step=None):
-        metrics_str = " | ".join([f"{k}={v}" for k, v in metrics.items()])
-        if step is not None:
-            print(f"[METRICS] Step {step} - {metrics_str}")
-        else:
-            print(f"[METRICS] {metrics_str}")
+        metrics_str = ", ".join([f"{k}={v}" for k, v in metrics.items()])
+        with logger.contextualize(run_name=self.run_name):
+            if step is not None:
+                logger.log("METRIC", f"Step {step}: {metrics_str}")
+            else:
+                logger.log("METRIC", f"{metrics_str}")
 
     def log_artifact(self, local_path, artifact_path=None):
         if artifact_path is None:
             artifact_path = os.path.basename(local_path)
-        print(f"[ARTIFACT] Logged {local_path} to {artifact_path}")
+        with logger.contextualize(run_name=self.run_name):
+            logger.log("ARTIFACT", f"Logged {local_path} to {artifact_path}")
+
+    def close(self):
+        logger.remove(self.info_logger)
+        logger.remove(self.other_logger)
 
 
 class FileTracker(Tracker):
     def __init__(self, file_path):
         self.file_path = file_path
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        self.file = open(file_path, "w")
-
-    def log(self, level, message):
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.file.write(f"[{level.upper()}] {timestamp} - {message}\n")
-        self.file.flush()
+        self.info_handler = logger.add(file_path, format=RUN_FORMAT, filter=lambda record: record["level"].no == 20)
+        self.other_handler = logger.add(file_path, format=OTHER_FORMAT, filter=lambda record: record["level"].no != 20)
 
     def log_metrics(self, metrics, step=None):
-        metrics_str = " | ".join([f"{k}={v}" for k, v in metrics.items()])
-        if step is not None:
-            self.file.write(f"[METRICS] Step {step} - {metrics_str}\n")
-        else:
-            self.file.write(f"[METRICS] {metrics_str}\n")
-        self.file.flush()
+        # automatically logged from regular logger
+        pass
 
     def log_artifact(self, local_path, artifact_path=None):
         if artifact_path is None:
@@ -84,22 +98,28 @@ class FileTracker(Tracker):
         os.makedirs(os.path.dirname(artifact_full_path), exist_ok=True)
 
         shutil.copy(local_path, artifact_full_path)
-        self.file.write(f"[ARTIFACT] copied {local_path} to {artifact_full_path}\n")
-        self.file.flush()
 
     def close(self):
-        if self.file:
-            self.file.close()
+        logger.remove(self.info_handler)
+        logger.remove(self.other_handler)
+        return super().close()
 
 
 class MLflowTracker(Tracker):
-    def __init__(self, experiment_name):
+    def __init__(self, experiment_name, run_name: Optional[str] = None, parent_run_id: Optional[str] = None):
         self.experiment_name = experiment_name
-        self.active_run = mlflow.active_run()
+        mlflow.set_tracking_uri("http://127.0.0.1:5000")
+        mlflow.set_experiment(self.experiment_name)
 
-    def log(self, level, message):
-        # MLflow does not support logging levels directly
-        pass
+        # Start run with optional parent
+        if parent_run_id:
+            active_run = mlflow.start_run(run_name=run_name, nested=True, parent_run_id=parent_run_id)
+        else:
+            active_run = mlflow.start_run(run_name=run_name)
+
+        self.run_id = active_run.info.run_id
+        self.run_name = active_run.info.run_name
+        self.active_run = active_run
 
     def log_metric(self, key, value, step=None):
         if self.active_run:
@@ -112,3 +132,8 @@ class MLflowTracker(Tracker):
     def log_artifact(self, local_path, artifact_path=None):
         if self.active_run:
             mlflow.log_artifact(local_path, artifact_path)
+
+    def close(self):
+        if self.active_run:
+            mlflow.end_run()
+        self.active_run = None
