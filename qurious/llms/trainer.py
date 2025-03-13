@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from qurious.config import Config
+from qurious.experiments import Run
 from qurious.utils import auto_device
 
 
@@ -25,10 +26,7 @@ class Trainer:
         device: Optional[torch.device] = None,
         config: Config = None,
         scheduler: Optional[Any] = None,
-        trackers: Optional[List[str | Callable]] = ["console"],
-        experiment_name: Optional[str] = None,
-        parent_run_id: Optional[str] = None,
-        run_name: Optional[str] = None,
+        run: Optional[Run] = None,
     ):
         """
         Initialize the trainer.
@@ -60,24 +58,10 @@ class Trainer:
 
         self.loss_fn = loss_fn
         self.scheduler = scheduler
-        self.trackers = trackers
 
         self.step = 0
         self.epoch = 0
-
-        if experiment_name is None:
-            experiment_name = f"Experiment {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
-        self.experiment_name = experiment_name
-        self.run_id = None
-
-        # set up mlflow logging if specified
-        if "mlflow" in self.trackers:
-            mlflow.set_tracking_uri("http://127.0.0.1:5000")
-            mlflow.set_experiment(experiment_name)
-            mlflow.start_run(parent_run_id=parent_run_id, nested=parent_run_id is not None, run_name=run_name)
-            self.run_id = mlflow.active_run().info.run_id
-            mlflow.log_params(self.config.flatten_and_stringify())
-            print(f"MLFlow experiment '{experiment_name}' started with run name '{mlflow.active_run().info.run_name}'")
+        self.run = run
 
         # Move model to the appropriate device
         self.model.to(self.device)
@@ -169,38 +153,8 @@ class Trainer:
         return self.loss_fn(outputs, targets)
 
     def _log_metrics(self, metrics: Dict[str, float]) -> None:
-        """
-        Log metrics to MLFlow and/or to the console.
-        If loggers contains a callable, it will be called with (self, metrics, epoch, step).
-
-        Args:
-            metrics: Dictionary of metrics to log
-            step: Current training step
-        """
-
-        def format_metric(name, value):
-            if name in ["lr", "learning_rate"]:
-                return f"{name}: {value:.2e}"
-            elif isinstance(value, int):
-                return f"{name}: {value}"
-            elif "acc" in name:
-                return f"{name}: {value:.2%}"
-            elif isinstance(value, float):
-                return f"{name}: {value:.4f}"
-            else:
-                return f"{name}: {value}"
-
-        if "console" in self.trackers:
-            metrics_str = ", ".join([f"{format_metric(k, v)}" for k, v in metrics.items()])
-            logger.info(f"step {self.step}: {metrics_str}")
-
-        if "mlflow" in self.trackers:
-            mlflow.log_metrics(metrics, step=self.step)
-
-        # Call any custom logger functions
-        tracker_fns = [tracker for tracker in self.trackers if isinstance(tracker, Callable)]
-        for tracker_fn in tracker_fns:
-            tracker_fn(self, metrics, self.epoch, self.step)
+        if self.run is not None:
+            self.run.log_metrics(metrics)
 
     def train_step(self, batch: Any) -> Dict[str, float]:
         """
@@ -422,7 +376,6 @@ class Trainer:
             train_dataloader: DataLoader for training data
             num_epochs: Number of epochs to train for
             eval_dataloader: Optional DataLoader for evaluation
-            save_dir: Directory to save model checkpoints
             save_freq: Frequency (in epochs) to save regular checkpoints
             best_model_metric: Metric to use for saving the best model (default: 'eval_loss')
             early_stopping_patience: Number of epochs to wait for improvement before stopping
@@ -433,12 +386,16 @@ class Trainer:
         """
         timestamp = datetime.datetime.now()
 
-        save_dir = self.config.paths.checkpoint_dir
+        if self.run is not None:
+            checkpoint_dir = os.path.join(self.run.run_path, self.config.paths.checkpoint_dir)
+        else:
+            checkpoint_dir = self.config.paths.checkpoint_dir
+
         save_freq = self.config.training.save_interval
 
         # Create save directory if needed
-        if save_dir and not os.path.exists(save_dir):
-            os.makedirs(save_dir)
+        if checkpoint_dir and not os.path.exists(checkpoint_dir):
+            os.makedirs(checkpoint_dir)
 
         # Initialize tracking variables
         history = {"train_loss": []}
@@ -473,8 +430,8 @@ class Trainer:
                         is_improvement = True
 
                         # Save best model
-                        if save_dir:
-                            self._save_checkpoint(os.path.join(save_dir, "best_model.pt"), best_metric_value)
+                        if checkpoint_dir:
+                            self._save_checkpoint(os.path.join(checkpoint_dir, "best_model.pt"), best_metric_value)
                             logger.info(
                                 f"Best model ({best_model_metric}={best_metric_value:.4f}) saved at epoch {self.epoch}"
                             )
@@ -485,15 +442,15 @@ class Trainer:
                         is_improvement = True
 
                         # Save best model
-                        if save_dir:
-                            self._save_checkpoint(os.path.join(save_dir, "best_model.pt"), best_metric_value)
+                        if checkpoint_dir:
+                            self._save_checkpoint(os.path.join(checkpoint_dir, "best_model.pt"), best_metric_value)
                             logger.info(
                                 f"Best model ({best_model_metric}={best_metric_value}) saved at epoch {self.epoch}"
                             )
 
                 # Regular checkpoint saving
-                if save_dir and save_freq > 0 and (self.epoch + 1) % save_freq == 0:
-                    checkpoint_path = os.path.join(save_dir, f"checkpoint_epoch_{self.epoch}.pt")
+                if checkpoint_dir and save_freq > 0 and (self.epoch + 1) % save_freq == 0:
+                    checkpoint_path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{self.epoch}.pt")
                     self._save_checkpoint(checkpoint_path)
                     logger.info(f"Checkpoint saved at epoch {self.epoch}")
 
@@ -519,22 +476,12 @@ class Trainer:
             logger.info("Training interrupted.")
         except Exception as e:
             logger.error(f"An error occurred during training: {e}")
-            if "mlflow" in self.trackers:
-                mlflow.log_param("error", str(e))
             raise
         finally:
             result = {
                 "history": history,
                 "best_epoch": best_epoch,
                 "best_metric_value": best_metric_value,
-                "experiment_name": self.experiment_name,
                 "runtime_secs": (datetime.datetime.now() - timestamp).total_seconds(),
             }
-
-            # Ensure MLFlow run is ended
-            if "mlflow" in self.trackers:
-                mlflow.end_run()
-                result["run_id"] = (self.run_id,)
-                result["run_name"] = mlflow.get_run(self.run_id).info.run_name
-
             return result

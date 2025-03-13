@@ -69,12 +69,22 @@ class TestConsoleTracker:
 
             # Test without step
             tracker.log_metrics({"metric1": 1.0, "metric2": 2.0})
-            mock_log.assert_any_call("METRIC", "metric1=1.0, metric2=2.0")
+            mock_log.assert_any_call("METRIC", "metric1: 1.0000, metric2: 2.0000")
 
             # Test with step
             mock_log.reset_mock()
             tracker.log_metrics({"metric3": 3.0}, step=5)
-            mock_log.assert_any_call("METRIC", "Step 5: metric3=3.0")
+            mock_log.assert_any_call("METRIC", "Step 5: metric3: 3.0000")
+
+            # Test accuracy
+            mock_log.reset_mock()
+            tracker.log_metrics({"accuracy": 0.95})
+            mock_log.assert_any_call("METRIC", "accuracy: 95.00%")
+
+            # Test learning_rate
+            mock_log.reset_mock()
+            tracker.log_metrics({"learning_rate": 1e-4})
+            mock_log.assert_any_call("METRIC", "learning_rate: 1.00e-04")
 
     @patch("sys.stderr")
     def test_log_artifact(self, mock_stderr):

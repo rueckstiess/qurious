@@ -56,12 +56,25 @@ class ConsoleTracker(Tracker):
             filter=lambda record: record["extra"].get("run_name", None) == run_name and record["level"].no != 20,
         )
 
+    @staticmethod
+    def _format_metric(name, value):
+        if name in ["lr", "learning_rate"]:
+            return f"{name}: {value:.2e}"
+        elif isinstance(value, int):
+            return f"{name}: {value}"
+        elif "acc" in name:
+            return f"{name}: {value:.2%}"
+        elif isinstance(value, float):
+            return f"{name}: {value:.4f}"
+        else:
+            return f"{name}: {value}"
+
     def log_info(self, message):
         with logger.contextualize(run_name=self.run_name):
             logger.info(message)
 
     def log_metrics(self, metrics, step=None):
-        metrics_str = ", ".join([f"{k}={v}" for k, v in metrics.items()])
+        metrics_str = ", ".join([f"{self._format_metric(k, v)}" for k, v in metrics.items()])
         with logger.contextualize(run_name=self.run_name):
             if step is not None:
                 logger.log("METRIC", f"Step {step}: {metrics_str}")
